@@ -5,6 +5,7 @@
 const G = (() => {
   const SCOPES = [
     'https://www.googleapis.com/auth/calendar.events',
+    'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
     'https://www.googleapis.com/auth/gmail.readonly',
     'https://www.googleapis.com/auth/gmail.send',
     'https://www.googleapis.com/auth/tasks',
@@ -52,12 +53,15 @@ const G = (() => {
 
   async function eventosProximos({ dias = 7 }) {
     const now = new Date(), end = new Date(now.getTime() + dias * 864e5);
-    const d = await api(`${CAL}?singleEvents=true&orderBy=startTime&maxResults=10&timeMin=${now.toISOString()}&timeMax=${end.toISOString()}`);
-    if (!d.items?.length) return 'No hay eventos en ese periodo.';
-    return d.items.map(e => {
-      const f = new Date(e.start.dateTime || e.start.date).toLocaleString('es-CO', e.start.dateTime ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' });
-      return `${e.summary || '(sin título)'}: ${f}`;
-    }).join('\n');
+    const cals = (await api('https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader')).items || [];
+    const all = [];
+    for (const c of cals.filter(c => c.selected !== false).slice(0, 8)) {
+      const d = await api(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(c.id)}/events?singleEvents=true&orderBy=startTime&maxResults=10&timeMin=${now.toISOString()}&timeMax=${end.toISOString()}`);
+      (d.items || []).forEach(e => all.push({ t: new Date(e.start.dateTime || e.start.date), dt: !!e.start.dateTime, name: e.summary || '(sin título)', cal: c.summaryOverride || c.summary }));
+    }
+    all.sort((x, y) => x.t - y.t);
+    if (!all.length) return 'No hay eventos en ese periodo.';
+    return all.slice(0, 12).map(e => `${e.name} (${e.cal}): ${e.t.toLocaleString('es-CO', e.dt ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' })}`).join('\n');
   }
 
   async function crearEvento({ titulo, inicio, duracion_min = 30, recordatorios_min = [10], descripcion = '' }) {
