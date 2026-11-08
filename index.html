@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>J.A.R.V.I.S.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;800&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-state="idle">
+
+  <!-- Pantalla de arranque (necesaria para que el navegador permita voz y micrófono) -->
+  <div id="boot" class="boot">
+    <div class="boot-inner">
+      <div class="boot-mark">J.A.R.V.I.S.</div>
+      <p class="boot-sub">Asistente virtual personal</p>
+      <button id="btnBoot" class="btn-main">Iniciar sistemas</button>
+      <p class="boot-hint">Usa Chrome o Edge para que funcione el reconocimiento de voz.</p>
+    </div>
+  </div>
+
+  <div class="scanlines"></div>
+
+  <header class="topbar">
+    <div class="brand">J.A.R.V.I.S.</div>
+    <div class="status"><span class="dot"></span><span id="statusText">En espera</span></div>
+    <div class="top-actions">
+      <button id="btnMic" class="chip" title="Escucha continua (di &quot;Jarvis&quot;)">Micrófono: apagado</button>
+      <button id="btnVoice" class="chip" title="Activar o silenciar la voz">Voz: activa</button>
+      <button id="btnGoogle" class="chip" title="Conectar con Google">Google: sin conectar</button>
+      <button id="btnSettings" class="chip">Ajustes</button>
+    </div>
+  </header>
+
+  <main class="grid">
+
+    <aside class="col">
+      <section class="card">
+        <h3>Hora local</h3>
+        <div id="clock" class="clock">--:--:--</div>
+        <div id="date" class="muted"></div>
+      </section>
+
+      <section class="card">
+        <h3>Clima</h3>
+        <div id="weatherMain" class="big">…</div>
+        <div id="weatherSub" class="muted"></div>
+      </section>
+
+      <section class="card">
+        <h3>Sistema</h3>
+        <div class="stat"><span>Conexión</span><b id="sysNet">--</b></div>
+        <div class="stat"><span>Batería</span><b id="sysBat">--</b></div>
+        <div class="bar"><i id="batBar"></i></div>
+        <div class="stat"><span>Memoria del equipo</span><b id="sysMem">--</b></div>
+        <div class="stat"><span>Núcleos</span><b id="sysCpu">--</b></div>
+      </section>
+
+      <section class="card">
+        <h3>Temporizadores</h3>
+        <ul id="timers" class="list"><li class="muted">Ninguno activo</li></ul>
+      </section>
+    </aside>
+
+    <section class="center">
+      <div class="orb-wrap">
+        <canvas id="orb" width="600" height="600" title="Toca para hablar"></canvas>
+      </div>
+      <div id="liveText" class="live">Di «Jarvis» o toca el orbe</div>
+      <div id="replyText" class="reply"></div>
+      <form id="form" class="cmd" autocomplete="off">
+        <input id="input" type="text" placeholder="Escribe una orden…" aria-label="Escribe una orden">
+        <button type="submit" class="btn-main small">Enviar</button>
+      </form>
+    </section>
+
+    <aside class="col">
+      <section class="card grow">
+        <h3>Registro de acciones</h3>
+        <ul id="actions" class="list log"></ul>
+      </section>
+
+      <section class="card">
+        <h3>Notas</h3>
+        <ul id="notes" class="list"><li class="muted">Sin notas</li></ul>
+      </section>
+
+      <section class="card">
+        <h3>Música</h3>
+        <div id="ytPlayer"></div>
+        <div id="ytTitle" class="muted">Nada sonando</div>
+      </section>
+    </aside>
+
+  </main>
+
+  <dialog id="settings" class="modal">
+    <form method="dialog" id="settingsForm">
+      <h2>Ajustes</h2>
+
+      <label>Clave de la API de Anthropic
+        <input id="setKey" type="password" placeholder="sk-ant-…" autocomplete="off">
+      </label>
+      <p class="muted tiny">Se guarda solo en este navegador. No subas esta página a internet con tu clave puesta.</p>
+
+      <label>Modelo
+        <input id="setModel" type="text" placeholder="claude-sonnet-5-5">
+      </label>
+
+      <label>Client ID de Google (para Calendar, Gmail, Tasks y música)
+        <input id="setGoogle" type="text" placeholder="1234-abc.apps.googleusercontent.com" autocomplete="off">
+      </label>
+
+      <label>Cómo te llama
+        <input id="setName" type="text" placeholder="Camilo">
+      </label>
+
+      <label>Voz
+        <select id="setVoice"></select>
+      </label>
+
+      <label>Velocidad de la voz
+        <input id="setRate" type="range" min="0.7" max="1.4" step="0.05">
+      </label>
+
+      <label>Color de la interfaz
+        <select id="setColor">
+          <option value="#19e3ff">Cian</option>
+          <option value="#ff4d4d">Rojo (modo Iron Man)</option>
+          <option value="#3dff9a">Verde</option>
+          <option value="#ff9a2e">Naranja</option>
+          <option value="#b57bff">Morado</option>
+          <option value="#ffd24a">Dorado</option>
+        </select>
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" id="btnTestVoice" class="chip">Probar voz</button>
+        <button type="button" id="btnClearChat" class="chip">Borrar conversación</button>
+        <button type="submit" id="btnSave" class="btn-main small" value="save">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="google.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
