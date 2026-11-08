@@ -682,6 +682,15 @@ async function localBrain(text) {
     await runTool('temporizador', { segundos: Number(m[1]) * mult });
     return 'Temporizador programado.';
   }
+  if (/youtube/.test(s) && (m = s.match(/(?:abre|abrir|ábreme|abreme|busca|buscar|b[uú]scame|encuentra)\s+(.+)/))) {
+    const q = m[1].replace(/\b(?:en|de|el|la|los|las|un|una|del)?\s*youtube\b/g, ' ').replace(/^(?:el|la)\s+(?:canal|video|v[ií]deo)\s+(?:de\s+)?/, '').replace(/\s+/g, ' ').trim();
+    if (q) {
+      const url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q) + (/canal/.test(s) ? '&sp=EgIQAg%3D%3D' : '');
+      logAction('Buscando en YouTube', q);
+      const r = openTab(url);
+      return r.startsWith('Abierto') ? 'Buscando ' + q + ' en YouTube.' : r;
+    }
+  }
   if ((m = s.match(/(?:pon|reproduce|busca en youtube)\s+(.+)/)) && /youtube|m[uú]sica|canci[oó]n|reproduce|pon /.test(s)) {
     await runTool('buscar_web', { consulta: m[1], motor: 'youtube' });
     return 'Buscando ' + m[1] + ' en YouTube.';
