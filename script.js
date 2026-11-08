@@ -331,7 +331,10 @@ const SITES = {
   whatsapp: 'https://web.whatsapp.com', github: 'https://github.com', spotify: 'https://open.spotify.com',
   netflix: 'https://www.netflix.com', twitter: 'https://x.com', instagram: 'https://www.instagram.com',
   facebook: 'https://www.facebook.com', maps: 'https://maps.google.com', drive: 'https://drive.google.com',
-  wikipedia: 'https://es.wikipedia.org', chatgpt: 'https://chatgpt.com', claude: 'https://claude.ai'
+  wikipedia: 'https://es.wikipedia.org', chatgpt: 'https://chatgpt.com', claude: 'https://claude.ai',
+  adidas: 'https://www.adidas.com', nike: 'https://www.nike.com', amazon: 'https://www.amazon.com',
+  mercadolibre: 'https://www.mercadolibre.com.co', tiktok: 'https://www.tiktok.com', twitch: 'https://www.twitch.tv',
+  reddit: 'https://www.reddit.com', linkedin: 'https://www.linkedin.com'
 };
 
 function normalizeUrl(u) {
@@ -509,7 +512,11 @@ async function runTool(name, input) {
   switch (name) {
     case 'abrir_sitio': {
       const url = normalizeUrl(input.url);
-      if (!url) return 'No reconozco ese sitio: ' + input.url;
+      if (!url) {
+        const q = 'https://www.google.com/search?q=' + encodeURIComponent(input.url);
+        logAction('Sitio desconocido, buscando en Google', input.url);
+        return openTab(q);
+      }
       logAction('Abriendo sitio', url);
       return openTab(url);
     }
