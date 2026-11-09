@@ -747,11 +747,21 @@ async function localBrain(text) {
   }
   if (cfg.googleClientId) {
     try {
-      if ((m = s.match(/volumen\s+(?:al\s+)?(\d+)/))) { await G.run('controlar_musica', { accion: 'volumen', volumen: m[1] }); return 'Volumen al ' + m[1] + '.'; }
+      const musica = acc => G.run('controlar_musica', { accion: acc });
+      if (/(?:sal(?:ir|ga)?\s+de|quita|quitar|cierra|reduce|achica|minimiza).*pantalla completa|(?:achica|minimiza|reduce)\s+(?:el\s+)?(?:reproductor|video|v[ií]deo)/.test(s)) { await musica('salir_pantalla'); return 'Listo, pantalla normal.'; }
+      if (/(?:quita|quite|elimina|cierra|apaga|oculta|borra)\s+(?:la\s+|el\s+)?(?:m[uú]sica|reproductor|video|v[ií]deo)/.test(s)) { await musica('quitar'); return 'Música quitada.'; }
+      if (!/\b(?:pon|ponme|reproduce|toca)\b/.test(s) && /pantalla completa|toda la pantalla|(?:ampl[ií]a|agranda|maximiza)\s+(?:la\s+|el\s+)?(?:m[uú]sica|reproductor|video|v[ií]deo)/.test(s)) { await musica('pantalla_completa'); return 'Pantalla completa. Di "achica el reproductor" para salir.'; }
+      if (/(?:reinicia|reiniciar|repite|empieza de nuevo|desde el principio).*(?:canci[oó]n|tema|m[uú]sica|video|v[ií]deo)/.test(s)) { await musica('reiniciar_cancion'); return 'Reiniciando la canción.'; }
+      if (/\banterior\b/.test(s)) { await musica('anterior'); return 'Canción anterior.'; }
+      if ((m = s.match(/volumen\s+(?:al?\s+)?(\d+)/))) { await G.run('controlar_musica', { accion: 'volumen', volumen: m[1] }); return 'Volumen al ' + m[1] + '.'; }
+      if (/(?:activa|reactiva|pon)\s+(?:el\s+)?sonido|quita\s+(?:el\s+)?silencio|con sonido|unmute/.test(s)) { await musica('activar_sonido'); return 'Sonido activado.'; }
+      if (/silencia|mute|sin sonido|quita\s+(?:el\s+)?sonido/.test(s)) { await musica('silenciar'); return 'Música en silencio.'; }
+      if (/(?:sube|subir|aumenta|aumentar)\s+(?:el\s+|la\s+)?(?:volumen|m[uú]sica)|m[aá]s (?:alto|fuerte)|volumen (?:m[aá]s )?alto/.test(s)) { await musica('subir_volumen'); return 'Volumen subido.'; }
+      if (/(?:baja|bajar|disminuye|reduce)\s+(?:el\s+|la\s+)?(?:volumen|m[uú]sica)|m[aá]s (?:bajo|suave|despacio)|volumen (?:m[aá]s )?bajo/.test(s)) { await musica('bajar_volumen'); return 'Volumen bajado.'; }
       if (/siguiente|salta|pasa la (canci[oó]n|m[uú]sica)/.test(s)) { await G.run('controlar_musica', { accion: 'siguiente' }); return 'Siguiente canción.'; }
-      if (/pausa|pausar|det[eé]n la m[uú]sica|para la m[uú]sica/.test(s)) { await G.run('controlar_musica', { accion: 'pausar' }); return 'Música en pausa.'; }
+      if (/pausa|pausar|(?:det[eé]n|para|pare)\s+(?:la\s+)?(?:m[uú]sica|canci[oó]n|tema)/.test(s)) { await G.run('controlar_musica', { accion: 'pausar' }); return 'Música en pausa.'; }
       if (/reanuda|contin[uú]a la m[uú]sica|sigue la m[uú]sica/.test(s)) { await G.run('controlar_musica', { accion: 'reanudar' }); return 'Continuando.'; }
-      if (!/youtube/.test(s) && (m = s.match(/(?:ponme|pon|reproduce|toca)\s+(?:algo de\s+|m[uú]sica de\s+|la canci[oó]n\s+)?(.+)/))) { logAction('Google: reproducir_musica', m[1]); return await G.run('reproducir_musica', { consulta: m[1] }); }
+      if (!/youtube/.test(s) && (m = s.match(/(?:ponme|pon|reproduce|toca)\s+(?:algo de\s+|m[uú]sica de\s+|la canci[oó]n\s+)?(.+)/))) { logAction('Google: reproducir_musica', m[1]); const full = /pantalla completa|toda la pantalla/.test(s); const r = await G.run('reproducir_musica', { consulta: m[1].replace(/\s*(?:en|a)\s+(?:toda\s+la\s+)?pantalla(?:\s+completa)?.*$/, '') }); if (full) await musica('pantalla_completa'); return r; }
       if (/agenda|qu[eé] tengo (hoy|ma[nñ]ana|pendiente)|pr[oó]ximos eventos|calendario/.test(s)) { logAction('Google: eventos_proximos'); return await G.run('eventos_proximos', { dias: /ma[nñ]ana/.test(s) ? 2 : 7 }); }
     } catch (err) { return 'Problema con Google: ' + err.message; }
   }
@@ -965,7 +975,7 @@ $('btnBoot').addEventListener('click', () => {
   initRec();
   const lines = ['Núcleo de voz', 'Enlace con la IA', 'Módulos de acciones', 'Interfaz HUD'];
   lines.forEach((l, i) => setTimeout(() => logAction(l + ': en línea'), 250 * (i + 1)));
-  setTimeout(() => logAction('Código versión 6'), 1300);
+  setTimeout(() => logAction('Código versión 8'), 1300);
 
   const g = greeting();
   $('replyText').textContent = g;
@@ -987,6 +997,7 @@ renderNotes();
 tick(); setInterval(tick, 1000);
 refreshSystem(); setInterval(refreshSystem, 30000);
 refreshWeather(); setInterval(refreshWeather, 15 * 60 * 1000);
+$('btnExitFull').addEventListener('click', () => G.run('controlar_musica', { accion: 'salir_pantalla' }));
 G.init(cfg.googleClientId);
 $('btnGoogle').addEventListener('click', async () => {
   if (!cfg.googleClientId) { logAction('Falta el Client ID de Google', 'Agrégalo en Ajustes. La guía está en el README.', true); openSettings(); return; }
