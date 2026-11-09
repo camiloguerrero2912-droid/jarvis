@@ -145,6 +145,7 @@ const G = (() => {
   function sonar() {
     const v = queue[qi];
     if (!v) { player.stopVideo(); document.getElementById('ytTitle').textContent = 'Fin de la lista'; return; }
+    player.getIframe().style.display = '';
     player.loadVideoById(v.id);
     document.getElementById('ytTitle').textContent = v.title;
   }
@@ -171,10 +172,25 @@ const G = (() => {
 
   function controlar({ accion, volumen }) {
     if (!player) return 'No hay música sonando.';
+    const f = player.getIframe();
+    const salirBtn = document.getElementById('btnExitFull');
     if (accion === 'pausar') player.pauseVideo();
     else if (accion === 'reanudar') player.playVideo();
     else if (accion === 'siguiente') siguiente();
+    else if (accion === 'anterior') { qi = Math.max(0, qi - 1); sonar(); }
+    else if (accion === 'reiniciar_cancion') player.seekTo(0, true);
     else if (accion === 'detener') player.stopVideo();
+    else if (accion === 'pantalla_completa') { f.classList.add('full'); if (salirBtn) salirBtn.hidden = false; }
+    else if (accion === 'salir_pantalla') { f.classList.remove('full'); if (salirBtn) salirBtn.hidden = true; }
+    else if (accion === 'quitar') {
+      f.classList.remove('full'); if (salirBtn) salirBtn.hidden = true;
+      player.stopVideo(); f.style.display = 'none'; queue = [];
+      document.getElementById('ytTitle').textContent = 'Nada sonando';
+    }
+    else if (accion === 'subir_volumen') player.setVolume(Math.min(100, player.getVolume() + 20));
+    else if (accion === 'bajar_volumen') player.setVolume(Math.max(0, player.getVolume() - 20));
+    else if (accion === 'silenciar') player.mute();
+    else if (accion === 'activar_sonido') player.unMute();
     else if (accion === 'volumen') player.setVolume(Math.max(0, Math.min(100, Number(volumen) || 50)));
     return 'Hecho.';
   }
@@ -192,7 +208,7 @@ const G = (() => {
     { name: 'tarea_crear', description: 'Crea una tarea o nota en Google Tasks (sincroniza con el celular). Úsala para anotar cosas sin hora exacta.', input_schema: obj({ titulo: { type: 'string' }, notas: { type: 'string' }, fecha: { type: 'string', description: 'YYYY-MM-DD opcional' } }, ['titulo']) },
     { name: 'tarea_completar', description: 'Marca una tarea como completada por su id.', input_schema: obj({ id: { type: 'string' } }, ['id']) },
     { name: 'reproducir_musica', description: 'Busca música en YouTube y la reproduce dentro de la página, con lista de reproducción.', input_schema: obj({ consulta: { type: 'string', description: 'Canción, artista o estilo' } }, ['consulta']) },
-    { name: 'controlar_musica', description: 'Controla la música: pausar, reanudar, siguiente, detener o volumen (0 a 100).', input_schema: obj({ accion: { type: 'string', enum: ['pausar', 'reanudar', 'siguiente', 'detener', 'volumen'] }, volumen: { type: 'number' } }, ['accion']) }
+    { name: 'controlar_musica', description: 'Controla la música: pausar, reanudar, siguiente, anterior, reiniciar_cancion, pantalla_completa (agranda el reproductor a toda la ventana), salir_pantalla, quitar (detiene y oculta el reproductor), detener, volumen (0 a 100), subir_volumen, bajar_volumen, silenciar o activar_sonido.', input_schema: obj({ accion: { type: 'string', enum: ['pausar', 'reanudar', 'siguiente', 'anterior', 'reiniciar_cancion', 'pantalla_completa', 'salir_pantalla', 'quitar', 'detener', 'volumen', 'subir_volumen', 'bajar_volumen', 'silenciar', 'activar_sonido'] }, volumen: { type: 'number' } }, ['accion']) }
   ];
 
   const handlers = {
