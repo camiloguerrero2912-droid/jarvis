@@ -400,23 +400,58 @@ function addTimer(seconds, label) {
     renderTimers();
     beep();
     logAction('Temporizador terminado', tm.label);
-    speak(`${cfg.name}, el temporizador ${tm.label === 'Temporizador' ? '' : tm.label + ' '}ha terminado.`);
+    speak(tm.label.startsWith('Alarma') ? `${cfg.name}, es la hora. ${tm.label}.` : `${cfg.name}, el temporizador ${tm.label === 'Temporizador' ? '' : tm.label + ' '}ha terminado.`);
   }, seconds * 1000);
   timers.push(tm);
   renderTimers();
 }
+/* Cronómetro y alarmas */
+let sw = { start: 0, acc: 0 };
+function fmtClock(ms) {
+  const t = Math.floor(ms / 1000), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), r = t % 60;
+  const p = n => String(n).padStart(2, '0');
+  return (h ? h + ':' : '') + p(m) + ':' + p(r);
+}
+function swAction(a) {
+  const now = Date.now();
+  const cur = () => sw.acc + (sw.start ? now - sw.start : 0);
+  if (a === 'iniciar') { if (!sw.start) sw.start = now; renderTimers(); return 'Cronómetro en marcha.'; }
+  if (a === 'pausar') { const t = cur(); sw.acc = t; sw.start = 0; renderTimers(); return 'Cronómetro detenido en ' + fmtDur(t / 1000) + '.'; }
+  if (a === 'reiniciar') { sw = { start: 0, acc: 0 }; renderTimers(); return 'Cronómetro reiniciado.'; }
+  return cur() ? 'Lleva ' + fmtDur(cur() / 1000) + '.' : 'El cronómetro está en cero.';
+}
+function setAlarm(hs, mi) {
+  const now = Date.now();
+  const d = hs.map(h => { const x = new Date(); x.setHours(h, mi, 0, 0); if (x.getTime() <= now) x.setDate(x.getDate() + 1); return x; }).sort((a, b) => a - b)[0];
+  const label = 'Alarma ' + d.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
+  addTimer(Math.round((d.getTime() - now) / 1000), label);
+  logAction('Alarma programada', label);
+  return label + ' programada.';
+}
+function cancelTimers(kind) {
+  const hit = timers.filter(t => kind === 'todo' || (kind === 'alarma') === t.label.startsWith('Alarma'));
+  hit.forEach(t => { clearTimeout(t.id); timers.splice(timers.indexOf(t), 1); });
+  renderTimers();
+  if (hit.length) logAction('Cancelado', hit.map(t => t.label).join(', '));
+  return hit.length ? 'Listo, cancelado.' : 'No hay ninguno activo.';
+}
 function fmtDur(s) {
   s = Math.max(0, Math.round(s));
-  const m = Math.floor(s / 60), r = s % 60;
-  return m ? `${m} min ${r} s` : `${r} s`;
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  return h ? `${h} h ${m} min` : m ? `${m} min ${r} s` : `${r} s`;
 }
 function renderTimers() {
   const ul = $('timers');
   ul.innerHTML = '';
-  if (!timers.length) { ul.innerHTML = '<li class="muted">Ninguno activo</li>'; return; }
+  const swMs = sw.acc + (sw.start ? Date.now() - sw.start : 0);
+  if (!timers.length && !swMs) { ul.innerHTML = '<li class="muted">Ninguno activo</li>'; return; }
+  if (swMs) { const li = document.createElement('li'); li.textContent = 'Cronómetro: ' + fmtClock(swMs) + (sw.start ? '' : ' (en pausa)'); ul.appendChild(li); }
   timers.forEach(tm => {
     const li = document.createElement('li');
     li.textContent = `${tm.label}: ${fmtDur((tm.end - Date.now()) / 1000)}`;
+    li.title = 'Clic para cancelar';
+    li.style.cursor = 'pointer';
+    li.onclick = () => { clearTimeout(tm.id); timers.splice(timers.indexOf(tm), 1); renderTimers(); logAction('Cancelado', tm.label); };
     ul.appendChild(li);
   });
 }
@@ -501,6 +536,21 @@ const TOOLS = [
     input_schema: { type: 'object', properties: { color: { type: 'string', enum: Object.keys(COLORS) } }, required: ['color'] }
   },
   {
+    name: 'cancelar_alarmas',
+    description: 'Cancela alarmas o temporizadores activos.',
+    input_schema: { type: 'object', properties: { tipo: { type: 'string', enum: ['alarma', 'temporizador', 'todo'] } }, required: ['tipo'] }
+  },
+  {
+    name: 'cronometro',
+    description: 'Controla un cronómetro que cuenta hacia adelante (iniciar, pausar, reiniciar o consultar el tiempo).',
+    input_schema: { type: 'object', properties: { accion: { type: 'string', enum: ['iniciar', 'pausar', 'reiniciar', 'consultar'] } }, required: ['accion'] }
+  },
+  {
+    name: 'alarma',
+    description: 'Programa una alarma para la próxima vez que llegue una hora del día. Solo suena con esta pestaña abierta; para alarmas que deben sonar con la pestaña cerrada usa crear_evento.',
+    input_schema: { type: 'object', properties: { hora: { type: 'string', description: 'HH:MM en formato de 24 horas' } }, required: ['hora'] }
+  },
+  {
     name: 'copiar_al_portapapeles',
     description: 'Copia un texto al portapapeles del usuario.',
     input_schema: { type: 'object', properties: { texto: { type: 'string' } }, required: ['texto'] }
@@ -580,6 +630,15 @@ async function runTool(name, input) {
       $('setColor').value = hex;
       logAction('Color cambiado', input.color);
       return 'Color cambiado a ' + input.color + '.';
+    }
+    case 'cancelar_alarmas':
+      return cancelTimers(input.tipo);
+    case 'cronometro':
+      return swAction(input.accion);
+    case 'alarma': {
+      const hm = String(input.hora || '').match(/(\d{1,2}):(\d{2})/);
+      if (!hm || Number(hm[1]) > 23 || Number(hm[2]) > 59) return 'Hora no válida.';
+      return setAlarm([Number(hm[1])], Number(hm[2]));
     }
     case 'copiar_al_portapapeles':
       try { await navigator.clipboard.writeText(String(input.texto || '')); logAction('Copiado al portapapeles'); return 'Copiado.'; }
@@ -661,6 +720,31 @@ async function askClaude(text) {
 async function localBrain(text) {
   const s = text.toLowerCase();
   let m;
+  if ((m = s.match(/(?:cancela|apaga|quita|elimina|desactiva|anula|borra|det[eé]n|para)\s+(?:la\s+|el\s+|las\s+|los\s+|todas\s+las\s+|todos\s+los\s+)?(alarmas?|temporizador(?:es)?)/))) {
+    return cancelTimers(/todas|todos/.test(s) ? 'todo' : m[1].startsWith('alarma') ? 'alarma' : 'temporizador');
+  }
+  const sn = s.replace(/\b(?:un|una)\s+(segundo|minuto|hora)/g, '1 $1').replace(/\bmedio minuto\b/, '30 segundos');
+  if ((m = sn.match(/(\d+)\s*(segundos?|minutos?|horas?)/)) && /temporizador|alarma|av[ií]same|cron[oó]metro|cuenta regresiva/.test(s)) {
+    const mult = /min/.test(m[2]) ? 60 : /hora/.test(m[2]) ? 3600 : 1;
+    await runTool('temporizador', { segundos: Number(m[1]) * mult });
+    return 'Temporizador de ' + m[1] + ' ' + m[2] + ' programado.';
+  }
+  if (/cron[oó]metro/.test(s)) {
+    if (/reinicia|resetea|a cero|borra|limpia/.test(s)) return swAction('reiniciar');
+    if (/\bpara\b|det[eé]n|pausa|termina/.test(s)) return swAction('pausar');
+    if (/inicia|empieza|arranca|comienza|activa|\bpon|reanuda|contin[uú]a/.test(s)) return swAction('iniciar');
+    return swAction('consultar');
+  }
+  if (/alarma|desp[ií]rtame/.test(s) && (m = s.match(/a las?\s+(\d{1,2})(?:[:.\s]+(\d{2}))?\s*(y media|y cuarto|menos cuarto)?(?:\s+de la\s+(ma[nñ]ana|tarde|noche|madrugada))?/))) {
+    let h = Number(m[1]), mi = Number(m[2] || 0);
+    if (m[3] === 'y media') mi = 30; else if (m[3] === 'y cuarto') mi = 15; else if (m[3] === 'menos cuarto') { mi = 45; h = (h + 23) % 24; }
+    if (h > 23 || mi > 59) return 'Esa hora no es válida.';
+    let hs = [h];
+    if (m[4] === 'tarde' || m[4] === 'noche') hs = [h < 12 ? h + 12 : h];
+    else if (m[4]) hs = [h === 12 ? 0 : h];
+    else if (h < 12) hs = [h, h + 12];
+    return setAlarm(hs, mi);
+  }
   if (cfg.googleClientId) {
     try {
       if ((m = s.match(/volumen\s+(?:al\s+)?(\d+)/))) { await G.run('controlar_musica', { accion: 'volumen', volumen: m[1] }); return 'Volumen al ' + m[1] + '.'; }
@@ -676,11 +760,6 @@ async function localBrain(text) {
   if (/clima|tiempo hace/.test(s)) {
     const city = (s.match(/en ([a-záéíóúñ\s]+)$/) || [])[1];
     return await runTool('clima', { ciudad: city });
-  }
-  if ((m = s.match(/(\d+)\s*(segundos?|minutos?|horas?)/)) && /temporizador|alarma|av[ií]same|cron[oó]metro/.test(s)) {
-    const mult = /min/.test(m[2]) ? 60 : /hora/.test(m[2]) ? 3600 : 1;
-    await runTool('temporizador', { segundos: Number(m[1]) * mult });
-    return 'Temporizador programado.';
   }
   if (/youtube/.test(s) && (m = s.match(/(?:abre|abrir|ábreme|abreme|busca|buscar|b[uú]scame|encuentra)\s+(.+)/))) {
     const q = m[1].replace(/\b(?:en|de|el|la|los|las|un|una|del)?\s*youtube\b/g, ' ').replace(/^(?:el|la)\s+(?:canal|video|v[ií]deo)\s+(?:de\s+)?/, '').replace(/\s+/g, ' ').trim();
@@ -760,7 +839,7 @@ function tick() {
   const d = new Date();
   $('clock').textContent = d.toLocaleTimeString('es-CO', { hour12: false });
   $('date').textContent = d.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  if (timers.length) renderTimers();
+  if (timers.length || sw.start || sw.acc) renderTimers();
 }
 
 async function refreshSystem() {
