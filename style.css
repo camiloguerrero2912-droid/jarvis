@@ -213,3 +213,10 @@ body[data-state="listening"] .live { color: #3dff9a; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Reproductor de música ---------- */
+.card.music { clip-path: none; backdrop-filter: none; }
+#ytPlayer { max-width: 100%; border: 0; }
+#ytPlayer.full { position: fixed; inset: 0; width: 100vw !important; height: 100vh !important; z-index: 80; background: #000; }
+#btnExitFull { position: fixed; top: 14px; right: 14px; z-index: 90; }
+#btnExitFull[hidden] { display: none; }
