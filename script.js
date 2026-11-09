@@ -445,13 +445,13 @@ function renderTimers() {
   ul.innerHTML = '';
   const swMs = sw.acc + (sw.start ? Date.now() - sw.start : 0);
   if (!timers.length && !swMs) { ul.innerHTML = '<li class="muted">Ninguno activo</li>'; return; }
-  if (swMs) { const li = document.createElement('li'); li.textContent = 'Cronómetro: ' + fmtClock(swMs) + (sw.start ? '' : ' (en pausa)'); li.title = 'Clic para eliminar'; li.style.cursor = 'pointer'; li.onclick = () => swAction('reiniciar'); ul.appendChild(li); }
+  if (swMs) { const li = document.createElement('li'); li.textContent = 'Cronómetro: ' + fmtClock(swMs) + (sw.start ? '' : ' (en pausa)'); li.title = 'Clic para eliminar'; li.style.cursor = 'pointer'; li.onpointerdown = () => swAction('reiniciar'); ul.appendChild(li); }
   timers.forEach(tm => {
     const li = document.createElement('li');
     li.textContent = `${tm.label}: ${fmtDur((tm.end - Date.now()) / 1000)}`;
     li.title = 'Clic para cancelar';
     li.style.cursor = 'pointer';
-    li.onclick = () => { clearTimeout(tm.id); timers.splice(timers.indexOf(tm), 1); renderTimers(); logAction('Cancelado', tm.label); };
+    li.onpointerdown = () => { clearTimeout(tm.id); timers.splice(timers.indexOf(tm), 1); renderTimers(); logAction('Cancelado', tm.label); };
     ul.appendChild(li);
   });
 }
@@ -729,7 +729,7 @@ async function localBrain(text) {
     await runTool('temporizador', { segundos: Number(m[1]) * mult });
     return 'Temporizador de ' + m[1] + ' ' + m[2] + ' programado.';
   }
-  if (/cron[oó]metro/.test(s)) {
+  if (/cron[oó]\s?metro|\bcrono\b/.test(s)) {
     if (/reinicia|resetea|a cero|borra|limpia|elimina|quita|cancela|apaga|desactiva|anula/.test(s)) return swAction('reiniciar');
     if (/\bpara\b|det[eé]n|pausa|termina/.test(s)) return swAction('pausar');
     if (/inicia|empieza|arranca|comienza|activa|\bpon|reanuda|contin[uú]a/.test(s)) return swAction('iniciar');
@@ -803,6 +803,7 @@ async function handleCommand(text) {
   if (!text || busy) return;
 
   $('liveText').textContent = '› ' + text;
+  logAction('Escuché', text);
 
   if (STOP_WORDS.test(text)) { stopSpeaking(); $('replyText').textContent = ''; return; }
   stopSpeaking();
@@ -964,6 +965,7 @@ $('btnBoot').addEventListener('click', () => {
   initRec();
   const lines = ['Núcleo de voz', 'Enlace con la IA', 'Módulos de acciones', 'Interfaz HUD'];
   lines.forEach((l, i) => setTimeout(() => logAction(l + ': en línea'), 250 * (i + 1)));
+  setTimeout(() => logAction('Código versión 6'), 1300);
 
   const g = greeting();
   $('replyText').textContent = g;
