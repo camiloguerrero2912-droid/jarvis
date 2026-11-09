@@ -445,7 +445,7 @@ function renderTimers() {
   ul.innerHTML = '';
   const swMs = sw.acc + (sw.start ? Date.now() - sw.start : 0);
   if (!timers.length && !swMs) { ul.innerHTML = '<li class="muted">Ninguno activo</li>'; return; }
-  if (swMs) { const li = document.createElement('li'); li.textContent = 'Cronómetro: ' + fmtClock(swMs) + (sw.start ? '' : ' (en pausa)'); ul.appendChild(li); }
+  if (swMs) { const li = document.createElement('li'); li.textContent = 'Cronómetro: ' + fmtClock(swMs) + (sw.start ? '' : ' (en pausa)'); li.title = 'Clic para eliminar'; li.style.cursor = 'pointer'; li.onclick = () => swAction('reiniciar'); ul.appendChild(li); }
   timers.forEach(tm => {
     const li = document.createElement('li');
     li.textContent = `${tm.label}: ${fmtDur((tm.end - Date.now()) / 1000)}`;
@@ -542,7 +542,7 @@ const TOOLS = [
   },
   {
     name: 'cronometro',
-    description: 'Controla un cronómetro que cuenta hacia adelante (iniciar, pausar, reiniciar o consultar el tiempo).',
+    description: 'Controla un cronómetro que cuenta hacia adelante (iniciar, pausar, consultar el tiempo, o reiniciar, que lo deja en cero y lo quita de la pantalla).',
     input_schema: { type: 'object', properties: { accion: { type: 'string', enum: ['iniciar', 'pausar', 'reiniciar', 'consultar'] } }, required: ['accion'] }
   },
   {
@@ -730,7 +730,7 @@ async function localBrain(text) {
     return 'Temporizador de ' + m[1] + ' ' + m[2] + ' programado.';
   }
   if (/cron[oó]metro/.test(s)) {
-    if (/reinicia|resetea|a cero|borra|limpia/.test(s)) return swAction('reiniciar');
+    if (/reinicia|resetea|a cero|borra|limpia|elimina|quita|cancela|apaga|desactiva|anula/.test(s)) return swAction('reiniciar');
     if (/\bpara\b|det[eé]n|pausa|termina/.test(s)) return swAction('pausar');
     if (/inicia|empieza|arranca|comienza|activa|\bpon|reanuda|contin[uú]a/.test(s)) return swAction('iniciar');
     return swAction('consultar');
