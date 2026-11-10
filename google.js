@@ -9,8 +9,7 @@ const G = (() => {
     'https://www.googleapis.com/auth/gmail.readonly',
     'https://www.googleapis.com/auth/gmail.send',
     'https://www.googleapis.com/auth/tasks',
-    'https://www.googleapis.com/auth/youtube.readonly',
-    'https://www.googleapis.com/auth/drive.file'
+    'https://www.googleapis.com/auth/youtube.readonly'
   ].join(' ');
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   let clientId = '', token = null, exp = 0;
@@ -35,6 +34,27 @@ const G = (() => {
           resolve(token);
         },
         error_callback: e => reject(new Error('Google no se conectó (' + (e.type || 'cancelado') + '). Pulsa el botón Google de arriba.'))
+      }).requestAccessToken({ prompt: '' });
+    });
+  }
+
+  /* Drive se pide aparte: Google no permite combinar el permiso de YouTube con el de Drive */
+  let dToken = null, dExp = 0;
+  function connectDrive() {
+    if (dToken && Date.now() < dExp) return Promise.resolve(dToken);
+    return new Promise((resolve, reject) => {
+      if (!clientId) return reject(new Error('Falta el Client ID de Google en Ajustes.'));
+      if (!window.google?.accounts?.oauth2) return reject(new Error('No cargó el servicio de Google. Revisa tu conexión.'));
+      google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        callback: r => {
+          if (r.error) return reject(new Error('Google: ' + r.error));
+          dToken = r.access_token;
+          dExp = Date.now() + (r.expires_in - 60) * 1000;
+          resolve(dToken);
+        },
+        error_callback: e => reject(new Error('Permiso de Drive no concedido (' + (e.type || 'cancelado') + ').'))
       }).requestAccessToken({ prompt: '' });
     });
   }
@@ -199,7 +219,7 @@ const G = (() => {
 
   /* ---------- Drive: crear un Google Doc a partir de HTML ---------- */
   async function crearDoc(titulo, html) {
-    const t = await connect();
+    const t = await connectDrive();
     const meta = JSON.stringify({ name: titulo, mimeType: 'application/vnd.google-apps.document' });
     const body = '--jv\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + meta +
       '\r\n--jv\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n' + html + '\r\n--jv--';
@@ -236,5 +256,5 @@ const G = (() => {
   };
   const run = (name, input) => handlers[name](input || {});
 
-  return { tools, run, init, connect, connected, configured, crearDoc };
+  return { tools, run, init, connect, connectDrive, connected, configured, crearDoc };
 })();
