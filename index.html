@@ -101,8 +101,16 @@
     <form method="dialog" id="settingsForm">
       <h2>Ajustes</h2>
 
-      <label>Clave de la API de Anthropic
-        <input id="setKey" type="password" placeholder="sk-ant-…" autocomplete="off">
+      <label>Cerebro (IA)
+        <select id="setProvider">
+          <option value="claude">Claude (de pago)</option>
+          <option value="gemini">Gemini (gratis, Google AI Studio)</option>
+          <option value="groq">Groq (gratis)</option>
+        </select>
+      </label>
+
+      <label>Clave de la API del cerebro elegido
+        <input id="setKey" type="password" placeholder="sk-ant-… / AIza… / gsk_…" autocomplete="off">
       </label>
       <p class="muted tiny">Se guarda solo en este navegador. No subas esta página a internet con tu clave puesta.</p>
 
@@ -146,7 +154,9 @@
   </dialog>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="google.js"></script>
+  <script src="carta.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
