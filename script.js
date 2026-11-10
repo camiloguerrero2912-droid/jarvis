@@ -1080,7 +1080,7 @@ $('btnBoot').addEventListener('click', () => {
   initRec();
   const lines = ['Núcleo de voz', 'Enlace con la IA', 'Módulos de acciones', 'Interfaz HUD'];
   lines.forEach((l, i) => setTimeout(() => logAction(l + ': en línea'), 250 * (i + 1)));
-  setTimeout(() => logAction('Código versión 9'), 1300);
+  setTimeout(() => logAction('Código versión 10'), 1300);
 
   const g = greeting();
   $('replyText').textContent = g;
@@ -1103,6 +1103,14 @@ tick(); setInterval(tick, 1000);
 refreshSystem(); setInterval(refreshSystem, 30000);
 refreshWeather(); setInterval(refreshWeather, 15 * 60 * 1000);
 $('btnExitFull').addEventListener('click', () => G.run('controlar_musica', { accion: 'salir_pantalla' }));
+$('btnDrive').addEventListener('click', async () => {
+  try {
+    await G.connectDrive();
+    $('btnDrive').textContent = 'Drive: con permiso';
+    $('btnDrive').classList.add('on');
+    logAction('Permiso de Drive concedido');
+  } catch (err) { logAction('No se pudo dar permiso a Drive', err.message, true); }
+});
 G.init(cfg.googleClientId);
 $('btnGoogle').addEventListener('click', async () => {
   if (!cfg.googleClientId) { logAction('Falta el Client ID de Google', 'Agrégalo en Ajustes. La guía está en el README.', true); openSettings(); return; }
