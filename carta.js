@@ -70,7 +70,7 @@ const Carta = (() => {
           const link = await G.crearDoc(nombre, html(B, nombre));
           window.open(link, '_blank', 'noopener');
           out.push('Google Doc creado en tu Drive: ' + link);
-        } catch (e) { out.push('No pude crear el Google Doc: ' + e.message); }
+        } catch (e) { out.push('No pude crear el Google Doc: ' + e.message + ' Pulsa el botón Drive de arriba para dar el permiso y repite la orden.'); }
       }
     }
     return out.join(' ');
