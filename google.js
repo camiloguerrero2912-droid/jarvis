@@ -9,13 +9,15 @@ const G = (() => {
     'https://www.googleapis.com/auth/gmail.readonly',
     'https://www.googleapis.com/auth/gmail.send',
     'https://www.googleapis.com/auth/tasks',
-    'https://www.googleapis.com/auth/youtube.readonly'
+    'https://www.googleapis.com/auth/youtube.readonly',
+    'https://www.googleapis.com/auth/drive.file'
   ].join(' ');
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   let clientId = '', token = null, exp = 0;
 
   const init = id => { clientId = id || ''; };
   const connected = () => !!token && Date.now() < exp;
+  const configured = () => !!clientId;
 
   function connect() {
     if (connected()) return Promise.resolve(token);
@@ -195,6 +197,21 @@ const G = (() => {
     return 'Hecho.';
   }
 
+  /* ---------- Drive: crear un Google Doc a partir de HTML ---------- */
+  async function crearDoc(titulo, html) {
+    const t = await connect();
+    const meta = JSON.stringify({ name: titulo, mimeType: 'application/vnd.google-apps.document' });
+    const body = '--jv\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + meta +
+      '\r\n--jv\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n' + html + '\r\n--jv--';
+    const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'multipart/related; boundary=jv' },
+      body
+    });
+    if (!r.ok) throw new Error(`Google ${r.status}: ${(await r.text()).slice(0, 150)}`);
+    return (await r.json()).webViewLink;
+  }
+
   /* ---------- Definición de herramientas para Claude ---------- */
   const obj = (properties, required = []) => ({ type: 'object', properties, required });
   const tools = [
@@ -219,5 +236,5 @@ const G = (() => {
   };
   const run = (name, input) => handlers[name](input || {});
 
-  return { tools, run, init, connect, connected };
+  return { tools, run, init, connect, connected, configured, crearDoc };
 })();
