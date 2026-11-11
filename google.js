@@ -25,6 +25,7 @@ const G = (() => {
       if (!window.google?.accounts?.oauth2) return reject(new Error('No cargó el servicio de Google. Revisa tu conexión.'));
       google.accounts.oauth2.initTokenClient({
         client_id: clientId,
+        include_granted_scopes: false,
         scope: SCOPES,
         callback: r => {
           if (r.error) return reject(new Error('Google: ' + r.error));
@@ -47,6 +48,7 @@ const G = (() => {
       if (!window.google?.accounts?.oauth2) return reject(new Error('No cargó el servicio de Google. Revisa tu conexión.'));
       google.accounts.oauth2.initTokenClient({
         client_id: clientId,
+        include_granted_scopes: false,
         scope: 'https://www.googleapis.com/auth/drive.file',
         callback: r => {
           if (r.error) return reject(new Error('Google: ' + r.error));
