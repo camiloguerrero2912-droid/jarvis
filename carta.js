@@ -62,6 +62,11 @@ const Carta = (() => {
       a.download = nombre.replace(/[\\/:*?"<>|]/g, '') + '.docx';
       document.body.appendChild(a); a.click(); a.remove();
       out.push('Archivo Word descargado: ' + a.download + '.');
+      if (typeof PC !== 'undefined' && PC.configured()) {
+        await new Promise(r => setTimeout(r, 2500));
+        try { out.push(await PC.ejecutar({ accion: 'abrir_descarga', objetivo: a.download })); }
+        catch (e) { out.push('No pude abrirla en Word: ' + e.message); }
+      }
     }
     if (fmt !== 'word') {
       if (!G.configured()) out.push('No creé el Google Doc porque Google no está configurado en Ajustes.');
