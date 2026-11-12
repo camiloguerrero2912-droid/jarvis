@@ -88,6 +88,17 @@ const G = (() => {
     return all.slice(0, 12).map(e => `${e.name} (${e.cal}): ${e.t.toLocaleString('es-CO', e.dt ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' })}`).join('\n');
   }
 
+  async function proximos(minutos) {
+    const now = new Date(), end = new Date(now.getTime() + minutos * 6e4);
+    const cals = (await api('https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader')).items || [];
+    const out = [];
+    for (const c of cals.filter(c => c.selected !== false).slice(0, 8)) {
+      const d = await api(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(c.id)}/events?singleEvents=true&orderBy=startTime&maxResults=5&timeMin=${now.toISOString()}&timeMax=${end.toISOString()}`);
+      (d.items || []).filter(e => e.start?.dateTime).forEach(e => out.push({ id: c.id + e.id, name: e.summary || 'un evento', t: new Date(e.start.dateTime) }));
+    }
+    return out.sort((a, b) => a.t - b.t);
+  }
+
   async function crearEvento({ titulo, inicio, duracion_min = 30, recordatorios_min = [10], descripcion = '' }) {
     const s = new Date(inicio);
     if (isNaN(s)) throw new Error('Fecha no válida: ' + inicio);
@@ -194,6 +205,15 @@ const G = (() => {
     return `Reproduciendo: ${queue[0].title}`;
   }
 
+  let duckVol = null;
+  function duck(on) {
+    if (!player) return;
+    try {
+      if (on && duckVol === null) { duckVol = player.getVolume(); player.setVolume(Math.min(duckVol, 15)); }
+      else if (!on && duckVol !== null) { player.setVolume(duckVol); duckVol = null; }
+    } catch {}
+  }
+
   function controlar({ accion, volumen }) {
     if (!player) return 'No hay música sonando.';
     const f = player.getIframe();
@@ -220,11 +240,11 @@ const G = (() => {
   }
 
   /* ---------- Drive: crear un Google Doc a partir de HTML ---------- */
-  async function crearDoc(titulo, html) {
+  async function subir(titulo, mimeDestino, mimeOrigen, contenido) {
     const t = await connectDrive();
-    const meta = JSON.stringify({ name: titulo, mimeType: 'application/vnd.google-apps.document' });
+    const meta = JSON.stringify({ name: titulo, mimeType: mimeDestino });
     const body = '--jv\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + meta +
-      '\r\n--jv\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n' + html + '\r\n--jv--';
+      '\r\n--jv\r\nContent-Type: ' + mimeOrigen + '; charset=UTF-8\r\n\r\n' + contenido + '\r\n--jv--';
     const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'multipart/related; boundary=jv' },
@@ -233,6 +253,8 @@ const G = (() => {
     if (!r.ok) throw new Error(`Google ${r.status}: ${(await r.text()).slice(0, 150)}`);
     return (await r.json()).webViewLink;
   }
+  const crearDoc = (titulo, html) => subir(titulo, 'application/vnd.google-apps.document', 'text/html', html);
+  const crearHoja = (titulo, csv) => subir(titulo, 'application/vnd.google-apps.spreadsheet', 'text/csv', csv);
 
   /* ---------- Definición de herramientas para Claude ---------- */
   const obj = (properties, required = []) => ({ type: 'object', properties, required });
@@ -258,5 +280,5 @@ const G = (() => {
   };
   const run = (name, input) => handlers[name](input || {});
 
-  return { tools, run, init, connect, connectDrive, connected, configured, crearDoc };
+  return { tools, run, init, connect, connectDrive, connected, configured, crearDoc, crearHoja, proximos, duck };
 })();
