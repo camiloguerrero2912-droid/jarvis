@@ -44,8 +44,16 @@ function hexA(hex, a) {
   const [r, g, b] = hexToRgb(hex);
   return `rgba(${r},${g},${b},${a})`;
 }
+function setFavicon(hex) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><radialGradient id='g'><stop offset='0' stop-color='#ffffff'/><stop offset='.35' stop-color='${hex}'/><stop offset='1' stop-color='${hex}' stop-opacity='0'/></radialGradient></defs><rect width='64' height='64' rx='14' fill='#02070e'/><circle cx='32' cy='32' r='27' fill='none' stroke='${hex}' stroke-width='3' stroke-dasharray='14 7'/><circle cx='32' cy='32' r='20' fill='none' stroke='${hex}' stroke-width='2' opacity='.7'/><circle cx='32' cy='32' r='15' fill='url(#g)'/><circle cx='32' cy='32' r='6' fill='#ffffff'/></svg>`;
+  let l = document.querySelector('link[rel="icon"]');
+  if (!l) { l = document.createElement('link'); l.rel = 'icon'; document.head.appendChild(l); }
+  l.type = 'image/svg+xml';
+  l.href = 'data:image/svg+xml,' + encodeURIComponent(svg);
+}
 function applyColor(hex) {
   hud = hex;
+  setFavicon(hex);
   document.documentElement.style.setProperty('--hud', hex);
   document.documentElement.style.setProperty('--hud-rgb', hexToRgb(hex).join(','));
 }
@@ -1236,7 +1244,7 @@ $('btnBoot').addEventListener('click', () => {
   initRec();
   const lines = ['Núcleo de voz', 'Enlace con la IA', 'Módulos de acciones', 'Interfaz HUD'];
   lines.forEach((l, i) => setTimeout(() => logAction(l + ': en línea'), 250 * (i + 1)));
-  setTimeout(() => logAction('Código versión 14'), 1300);
+  setTimeout(() => logAction('Código versión 15'), 1300);
 
   const g = greeting();
   $('replyText').textContent = g;
