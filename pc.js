@@ -59,11 +59,11 @@ const PC = (() => {
 
   const tool = {
     name: 'controlar_pc',
-    description: 'Controla el computador del usuario con Windows: abrir o cerrar programas (word, excel, powerpoint, calculadora, bloc de notas, paint, explorador, chrome, edge, vscode, spotify, configuracion, administrador de tareas), abrir carpetas (escritorio, documentos, descargas, imagenes, musica, videos), volumen del equipo, teclas multimedia (objetivo: pausa, siguiente, anterior), minimizar todo, bloquear, apagar o reiniciar (con 30 segundos para cancelar) y cancelar_apagado. Para abrir un documento que acabas de crear con crear_carta no hace falta: se abre solo.',
+    description: 'Controla el computador del usuario con Windows: abrir o cerrar programas (word, excel, powerpoint, calculadora, bloc de notas, paint, explorador, chrome, edge, vscode, spotify, configuracion, administrador de tareas), abrir carpetas (escritorio, documentos, descargas, imagenes, musica, videos), volumen del equipo, teclas multimedia (objetivo: pausa, siguiente, anterior), minimizar todo, captura (abre la herramienta de recortes), cambiar_ventana, bloquear, apagar o reiniciar (con 30 segundos para cancelar) y cancelar_apagado. Para abrir un documento que acabas de crear con crear_carta no hace falta: se abre solo.',
     input_schema: {
       type: 'object',
       properties: {
-        accion: { type: 'string', enum: ['abrir', 'cerrar', 'carpeta', 'volumen_subir', 'volumen_bajar', 'silenciar', 'multimedia', 'minimizar_todo', 'bloquear', 'apagar', 'reiniciar', 'cancelar_apagado'] },
+        accion: { type: 'string', enum: ['abrir', 'cerrar', 'carpeta', 'volumen_subir', 'volumen_bajar', 'silenciar', 'multimedia', 'minimizar_todo', 'captura', 'cambiar_ventana', 'bloquear', 'apagar', 'reiniciar', 'cancelar_apagado'] },
         objetivo: { type: 'string', description: 'Programa, carpeta o control multimedia, según la acción' }
       },
       required: ['accion']
