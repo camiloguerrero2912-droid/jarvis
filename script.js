@@ -406,17 +406,60 @@ function beep() {
     });
   } catch {}
 }
+let ringTimer = null, ringStop = null, ac = null;
+function getAC() {
+  if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+  if (ac.state === 'suspended') ac.resume();
+  return ac;
+}
+function alarmTone() {
+  try {
+    const a = getAC(), t0 = a.currentTime;
+    [0, 0.3, 0.6].forEach((d, i) => {
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = 'square';
+      o.frequency.value = i % 2 ? 1320 : 880;
+      o.connect(g); g.connect(a.destination);
+      g.gain.setValueAtTime(0.8, t0 + d);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + d + 0.25);
+      o.start(t0 + d); o.stop(t0 + d + 0.27);
+    });
+  } catch {}
+}
+function startRinging(label) {
+  if (ringTimer) return;
+  if (cfg.pcToken) PC.ejecutar({ accion: 'volumen_maximo', objetivo: '' }).catch(() => {});
+  logAction('Alarma sonando', label);
+  $('btnStopAlarm').hidden = false;
+  alarmTone();
+  ringTimer = setInterval(alarmTone, 1600);
+  ringStop = setTimeout(stopRinging, 10 * 60 * 1000);
+  speak(`${cfg.name}, es la hora. ${label}. Di apaga la alarma.`);
+}
+function stopRinging() {
+  clearInterval(ringTimer);
+  clearTimeout(ringStop);
+  ringTimer = null; ringStop = null;
+  $('btnStopAlarm').hidden = true;
+}
+
 function addTimer(seconds, label) {
   const tm = { end: Date.now() + seconds * 1000, label: label || 'Temporizador' };
   tm.id = setTimeout(() => {
     timers.splice(timers.indexOf(tm), 1);
     renderTimers();
+    if (tm.label.startsWith('Alarma')) {
+      if (tm.pcAlarm) { logAction('Alarma sonando en Windows', tm.label); return; }
+      startRinging(tm.label);
+      return;
+    }
     beep();
     logAction('Temporizador terminado', tm.label);
     speak(tm.label.startsWith('Alarma') ? `${cfg.name}, es la hora. ${tm.label}.` : `${cfg.name}, el temporizador ${tm.label === 'Temporizador' ? '' : tm.label + ' '}ha terminado.`);
   }, seconds * 1000);
   timers.push(tm);
   renderTimers();
+  return tm;
 }
 /* Cronómetro y alarmas */
 let sw = { start: 0, acc: 0 };
@@ -437,14 +480,23 @@ function setAlarm(hs, mi) {
   const now = Date.now();
   const d = hs.map(h => { const x = new Date(); x.setHours(h, mi, 0, 0); if (x.getTime() <= now) x.setDate(x.getDate() + 1); return x; }).sort((a, b) => a - b)[0];
   const label = 'Alarma ' + d.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
-  addTimer(Math.round((d.getTime() - now) / 1000), label);
+  const tm = addTimer(Math.round((d.getTime() - now) / 1000), label);
   logAction('Alarma programada', label);
+  if (cfg.pcToken) {
+    const p2 = n => String(n).padStart(2, '0');
+    tm.iso = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    PC.ejecutar({ accion: 'alarma_pc', objetivo: tm.iso })
+      .then(m => { tm.pcAlarm = true; logAction('Alarma de Windows', m); })
+      .catch(e => logAction('La alarma de Windows no se programó', e.message, true));
+  }
   return label + ' programada.';
 }
 function cancelTimers(kind) {
   const hit = timers.filter(t => kind === 'todo' || (kind === 'alarma') === t.label.startsWith('Alarma'));
   hit.forEach(t => { clearTimeout(t.id); timers.splice(timers.indexOf(t), 1); });
   renderTimers();
+  stopRinging();
+  if (cfg.pcToken && kind !== 'temporizador') PC.ejecutar({ accion: 'cancelar_alarma_pc', objetivo: '' }).catch(() => {});
   if (hit.length) logAction('Cancelado', hit.map(t => t.label).join(', '));
   return hit.length ? 'Listo, cancelado.' : 'No hay ninguno activo.';
 }
@@ -464,7 +516,7 @@ function renderTimers() {
     li.textContent = `${tm.label}: ${fmtDur((tm.end - Date.now()) / 1000)}`;
     li.title = 'Clic para cancelar';
     li.style.cursor = 'pointer';
-    li.onpointerdown = () => { clearTimeout(tm.id); timers.splice(timers.indexOf(tm), 1); renderTimers(); logAction('Cancelado', tm.label); };
+    li.onpointerdown = () => { clearTimeout(tm.id); timers.splice(timers.indexOf(tm), 1); renderTimers(); logAction('Cancelado', tm.label); if (tm.pcAlarm) PC.ejecutar({ accion: 'cancelar_alarma_pc', objetivo: tm.iso }).catch(() => {}); };
     ul.appendChild(li);
   });
 }
@@ -1077,6 +1129,23 @@ async function handleCommand(text) {
   $('liveText').textContent = '› ' + text;
   logAction('Escuché', text);
 
+  if (!ringTimer && /prueba (?:de )?(?:la )?alarma/i.test(text)) { startRinging('Prueba de alarma'); return; }
+  if (ringTimer) {
+    const t = text.toLowerCase();
+    if (/posp[oó]n|posponer|cinco minutos m[aá]s|5 minutos m[aá]s/.test(t)) {
+      stopRinging(); stopSpeaking();
+      addTimer(300, 'Alarma pospuesta');
+      $('replyText').textContent = 'Alarma pospuesta cinco minutos.';
+      await speak('Pospuesta cinco minutos.');
+      return;
+    }
+    if (/apaga|det[eé]n|\bpara\b|cancela|silencia|c[aá]llate|basta|listo|\bya\b/.test(t)) {
+      stopRinging(); stopSpeaking();
+      $('replyText').textContent = 'Alarma apagada.';
+      await speak('Alarma apagada.');
+      return;
+    }
+  }
   if (STOP_WORDS.test(text)) { stopSpeaking(); $('replyText').textContent = ''; return; }
   stopSpeaking();
 
@@ -1241,10 +1310,11 @@ function greeting() {
 
 $('btnBoot').addEventListener('click', () => {
   $('boot').classList.add('hide');
+  getAC();
   initRec();
   const lines = ['Núcleo de voz', 'Enlace con la IA', 'Módulos de acciones', 'Interfaz HUD'];
   lines.forEach((l, i) => setTimeout(() => logAction(l + ': en línea'), 250 * (i + 1)));
-  setTimeout(() => logAction('Código versión 15'), 1300);
+  setTimeout(() => logAction('Código versión 16'), 1300);
 
   const g = greeting();
   $('replyText').textContent = g;
@@ -1266,6 +1336,7 @@ renderNotes();
 tick(); setInterval(tick, 1000);
 refreshSystem(); setInterval(refreshSystem, 30000);
 refreshWeather(); setInterval(refreshWeather, 15 * 60 * 1000);
+$('btnStopAlarm').addEventListener('click', stopRinging);
 $('btnExitFull').addEventListener('click', () => G.run('controlar_musica', { accion: 'salir_pantalla' }));
 $('btnDrive').addEventListener('click', async () => {
   try {
