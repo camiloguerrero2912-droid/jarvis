@@ -63,7 +63,7 @@ const PC = (() => {
     input_schema: {
       type: 'object',
       properties: {
-        accion: { type: 'string', enum: ['abrir', 'cerrar', 'carpeta', 'volumen_subir', 'volumen_bajar', 'silenciar', 'multimedia', 'minimizar_todo', 'captura', 'cambiar_ventana', 'bloquear', 'apagar', 'reiniciar', 'cancelar_apagado'] },
+        accion: { type: 'string', enum: ['abrir', 'cerrar', 'carpeta', 'volumen_subir', 'volumen_bajar', 'volumen_maximo', 'silenciar', 'multimedia', 'minimizar_todo', 'captura', 'cambiar_ventana', 'bloquear', 'apagar', 'reiniciar', 'cancelar_apagado'] },
         objetivo: { type: 'string', description: 'Programa, carpeta o control multimedia, según la acción' }
       },
       required: ['accion']
