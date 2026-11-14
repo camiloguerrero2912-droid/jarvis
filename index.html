@@ -8,27 +8,41 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;800&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;800&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body data-state="idle">
 
   <!-- Pantalla de arranque (necesaria para que el navegador permita voz y micrófono) -->
   <div id="boot" class="boot">
+    <div class="boot-rings"><i></i><i></i><i></i></div>
     <div class="boot-inner">
       <div class="boot-mark">J.A.R.V.I.S.</div>
-      <p class="boot-sub">Asistente virtual personal</p>
+      <p class="boot-sub">Just A Rather Very Intelligent System</p>
       <button id="btnBoot" class="btn-main">Iniciar sistemas</button>
       <p class="boot-hint">Usa Chrome o Edge para que funcione el reconocimiento de voz.</p>
     </div>
   </div>
 
+  <div class="bg-grid"></div>
+  <div class="vignette"></div>
+  <div class="frame"></div>
   <div class="scanlines"></div>
   <button id="btnExitFull" class="chip" hidden>Salir de pantalla completa</button>
   <button id="btnStopAlarm" hidden>Apagar alarma</button>
 
   <header class="topbar">
-    <div class="brand">J.A.R.V.I.S.</div>
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="27" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="14 7"/>
+        <circle cx="32" cy="32" r="19" fill="none" stroke="currentColor" stroke-width="2" opacity=".7"/>
+        <circle cx="32" cy="32" r="7" fill="#fff"/>
+      </svg>
+      <div>
+        <div class="brand-name">J.A.R.V.I.S.</div>
+        <div class="brand-sub">Asistente virtual personal</div>
+      </div>
+    </div>
     <div class="status"><span class="dot"></span><span id="statusText">En espera</span></div>
     <div class="top-actions">
       <button id="btnMic" class="chip" title="Escucha continua (di &quot;Jarvis&quot;)">Micrófono: apagado</button>
@@ -55,12 +69,21 @@
       </section>
 
       <section class="card">
+        <h3>Mercados</h3>
+        <div class="fx"><span class="fx-name">Dólar</span><b id="fxUsd">--</b><i id="fxUsdD" class="delta"></i></div>
+        <div class="fx"><span class="fx-name">Euro</span><b id="fxEur">--</b><i class="delta"></i></div>
+        <div class="muted tiny">Pesos colombianos · dólar según la TRM</div>
+      </section>
+
+      <section class="card">
         <h3>Sistema</h3>
-        <div class="stat"><span>Conexión</span><b id="sysNet">--</b></div>
-        <div class="stat"><span>Batería</span><b id="sysBat">--</b></div>
+        <div class="sys">
+          <div><span>Conexión</span><b id="sysNet">--</b></div>
+          <div><span>Batería</span><b id="sysBat">--</b></div>
+          <div><span>Memoria</span><b id="sysMem">--</b></div>
+          <div><span>Núcleos</span><b id="sysCpu">--</b></div>
+        </div>
         <div class="bar"><i id="batBar"></i></div>
-        <div class="stat"><span>Memoria del equipo</span><b id="sysMem">--</b></div>
-        <div class="stat"><span>Núcleos</span><b id="sysCpu">--</b></div>
       </section>
 
       <section class="card">
@@ -75,7 +98,15 @@
       </div>
       <div id="liveText" class="live">Di «Jarvis» o toca el orbe</div>
       <div id="replyText" class="reply"></div>
+      <div class="suggest">
+        <button type="button" data-cmd="Buenos días">Buenos días</button>
+        <button type="button" data-cmd="¿Cómo está el dólar?">Dólar</button>
+        <button type="button" data-cmd="Modo estudio">Modo estudio</button>
+        <button type="button" data-cmd="Mi agenda">Mi agenda</button>
+        <button type="button" data-cmd="Abre YouTube">YouTube</button>
+      </div>
       <form id="form" class="cmd" autocomplete="off">
+        <span class="prompt">›</span>
         <input id="input" type="text" placeholder="Escribe una orden…" aria-label="Escribe una orden">
         <button type="submit" class="btn-main small">Enviar</button>
       </form>
@@ -100,6 +131,11 @@
     </aside>
 
   </main>
+
+  <footer class="ticker">
+    <span class="ticker-tag">Economía</span>
+    <div class="ticker-track"><div id="tickerMove" class="ticker-move"><span>Cargando noticias económicas…</span></div></div>
+  </footer>
 
   <dialog id="settings" class="modal">
     <form method="dialog" id="settingsForm">
@@ -166,6 +202,7 @@
   <script src="google.js"></script>
   <script src="carta.js"></script>
   <script src="pc.js"></script>
+  <script src="economia.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
