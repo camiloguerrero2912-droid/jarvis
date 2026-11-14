@@ -220,3 +220,8 @@ body[data-state="listening"] .live { color: #3dff9a; }
 #ytPlayer.full { position: fixed; inset: 0; width: 100vw !important; height: 100vh !important; z-index: 80; background: #000; }
 #btnExitFull { position: fixed; top: 14px; right: 14px; z-index: 90; }
 #btnExitFull[hidden] { display: none; }
+
+/* ---------- Alarma sonando ---------- */
+#btnStopAlarm { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 95; font-family: var(--font-hud); font-size: 26px; padding: 28px 56px; color: #fff; background: #d32f2f; border: 3px solid #fff; cursor: pointer; animation: ring .6s infinite alternate; }
+#btnStopAlarm[hidden] { display: none; }
+@keyframes ring { to { transform: translate(-50%, -50%) scale(1.08); } }
