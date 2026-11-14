@@ -109,74 +109,150 @@ function ring(c, r, w, dash, rot, a) {
   ctx.stroke();
   ctx.restore();
 }
+function seg(c, r, w, a0, a1, color) {
+  ctx.beginPath();
+  ctx.arc(c, c, r, a0, a1);
+  ctx.lineWidth = w;
+  ctx.strokeStyle = color;
+  ctx.stroke();
+}
 
-function drawOrb() {
-  t += 0.016;
-  const W = cv.width, c = W / 2;
-  const targets = { idle: 0.18, listening: 0.5, thinking: 0.35, speaking: 0.85 };
+let lastT = performance.now(), frameN = 0;
+function drawOrb(now) {
+  now = now || performance.now();
+  const dt = Math.min(0.1, (now - lastT) / 1000);
+  if (state === 'idle' && (++frameN & 1)) { requestAnimationFrame(drawOrb); return; } // 30 fps en reposo
+  lastT = now;
+  t += dt;
+
+  const W = cv.width, c = W / 2, TAU = Math.PI * 2;
+  const targets = { idle: 0.16, listening: 0.5, thinking: 0.32, speaking: 0.85 };
   let tg = targets[state] ?? 0.2;
   if (state === 'speaking') tg *= 0.55 + 0.45 * Math.abs(Math.sin(t * 9) * Math.cos(t * 4.3));
-  level += (tg - level) * 0.08;
+  level += (tg - level) * Math.min(1, dt * 5);
+  const spin = state === 'thinking' ? 3.2 : state === 'listening' ? 1.6 : 1;
+  const alt = state === 'thinking' ? '#ffb020' : hud;
 
   ctx.clearRect(0, 0, W, W);
+  ctx.setLineDash([]);
 
-  const g = ctx.createRadialGradient(c, c, 20, c, c, c);
-  g.addColorStop(0, hexA(hud, 0.35 + level * 0.3));
-  g.addColorStop(0.5, hexA(hud, 0.07));
+  // halo
+  const g = ctx.createRadialGradient(c, c, 30, c, c, c);
+  g.addColorStop(0, hexA(hud, 0.30 + level * 0.30));
+  g.addColorStop(0.45, hexA(hud, 0.08));
   g.addColorStop(1, hexA(hud, 0));
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, W);
 
-  const spin = state === 'thinking' ? 3.2 : 1;
-  ring(c, 200, 2, [10, 14], t * 0.4 * spin, 0.5);
-  ring(c, 225, 1, [2, 10], -t * 0.6 * spin, 0.4);
-  ring(c, 255, 3, [60, 40], t * 0.25 * spin, 0.6);
+  // barrido tipo radar
+  if (ctx.createConicGradient) {
+    const sw = ctx.createConicGradient(t * 0.9 * spin, c, c);
+    sw.addColorStop(0, hexA(alt, 0.32));
+    sw.addColorStop(0.16, hexA(alt, 0));
+    sw.addColorStop(1, hexA(alt, 0));
+    ctx.fillStyle = sw;
+    ctx.beginPath();
+    ctx.arc(c, c, 236, 0, TAU);
+    ctx.fill();
+  }
 
+  // anillos y segmentos
+  ring(c, 290, 1, [], 0, 0.22);
+  ring(c, 272, 2, [3, 9], -t * 0.35 * spin, 0.45);
+  for (let i = 0; i < 3; i++) {
+    const a = t * 0.5 * spin + i * 2.094;
+    seg(c, 246, 6, a, a + 1.05, hexA(i === 0 ? alt : hud, 0.85));
+  }
+  for (let i = 0; i < 2; i++) {
+    const a = -t * 0.8 * spin + i * Math.PI + 0.4;
+    seg(c, 226, 2.5, a, a + 0.6, hexA(hud, 0.6));
+  }
+
+  // marcas de escala
   ctx.save();
   ctx.translate(c, c);
-  ctx.rotate(-t * 0.15);
-  ctx.setLineDash([]);
-  for (let i = 0; i < 90; i++) {
-    ctx.rotate((Math.PI * 2) / 90);
-    const long = i % 5 === 0;
-    ctx.strokeStyle = hexA(hud, long ? 0.7 : 0.3);
-    ctx.lineWidth = long ? 2 : 1;
+  ctx.rotate(-t * 0.12 * spin);
+  for (let i = 0; i < 120; i++) {
+    ctx.rotate(Math.PI / 60);
+    const big = i % 10 === 0, mid = i % 5 === 0;
+    ctx.strokeStyle = hexA(hud, big ? 0.85 : mid ? 0.5 : 0.22);
+    ctx.lineWidth = big ? 2 : 1;
     ctx.beginPath();
-    ctx.moveTo(0, -278);
-    ctx.lineTo(0, -278 + (long ? 16 : 8));
+    ctx.moveTo(0, -212);
+    ctx.lineTo(0, -212 + (big ? 18 : mid ? 11 : 6));
     ctx.stroke();
   }
   ctx.restore();
+  ring(c, 192, 1.5, [10, 14], t * 0.6 * spin, 0.5);
 
-  ctx.setLineDash([]);
-  ctx.beginPath();
-  const base = 130 + level * 10, N = 180, amp = level * 28;
-  for (let i = 0; i <= N; i++) {
-    const a = (i / N) * Math.PI * 2;
-    const r = base
-      + Math.sin(a * 6 + t * 3) * amp * 0.6
-      + Math.sin(a * 11 - t * 4.5) * amp * 0.4
-      + Math.sin(a * 3 + t * 1.7) * amp * 0.3;
+  // satélites en órbita
+  for (let i = 0; i < 3; i++) {
+    const a = t * (0.7 + i * 0.25) * spin + i * 2.09, r = 272 - i * 4;
     const x = c + Math.cos(a) * r, y = c + Math.sin(a) * r;
+    const gg = ctx.createRadialGradient(x, y, 0, x, y, 14);
+    gg.addColorStop(0, hexA(hud, 0.9));
+    gg.addColorStop(1, hexA(hud, 0));
+    ctx.fillStyle = gg;
+    ctx.beginPath(); ctx.arc(x, y, 14, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x, y, 2.6, 0, TAU); ctx.fill();
+  }
+
+  // hexágono giratorio
+  ctx.save();
+  ctx.translate(c, c);
+  ctx.rotate(t * 0.18 * spin);
+  ctx.strokeStyle = hexA(hud, 0.4);
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (i * Math.PI) / 3, x = Math.cos(a) * 168, y = Math.sin(a) * 168;
     i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
   }
   ctx.closePath();
-  ctx.strokeStyle = hexA(hud, 0.95);
-  ctx.lineWidth = 2.5;
-  ctx.shadowColor = hud;
-  ctx.shadowBlur = 18;
   ctx.stroke();
-  ctx.shadowBlur = 0;
+  ctx.fillStyle = hexA(hud, 0.9);
+  for (let i = 0; i < 6; i++) {
+    const a = (i * Math.PI) / 3;
+    ctx.beginPath(); ctx.arc(Math.cos(a) * 168, Math.sin(a) * 168, 3, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
 
+  // ondas de voz (doble trazo en vez de sombra: más liviano)
+  const wave = (base, amp, ph, color, lw) => {
+    ctx.beginPath();
+    for (let i = 0; i <= 160; i++) {
+      const a = (i / 160) * TAU;
+      const r = base + Math.sin(a * 6 + t * 3 + ph) * amp * 0.6 + Math.sin(a * 11 - t * 4.5 + ph) * amp * 0.4 + Math.sin(a * 3 + t * 1.7) * amp * 0.3;
+      const x = c + Math.cos(a) * r, y = c + Math.sin(a) * r;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lw;
+    ctx.stroke();
+  };
+  const amp = level * 30, base = 132 + level * 10;
+  wave(base, amp, 0, hexA(hud, 0.18), 10);
+  wave(base - 12, amp * 0.7, 1.7, hexA(hud, 0.4), 1.5);
+  wave(base, amp, 0, hexA(hud, 0.95), 2.5);
+
+  // pulso al escuchar o hablar
+  if (state === 'speaking' || state === 'listening') {
+    const p = (t * (state === 'speaking' ? 1.4 : 0.8)) % 1;
+    ctx.strokeStyle = hexA(hud, 0.5 * (1 - p));
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(c, c, 100 + p * 90, 0, TAU); ctx.stroke();
+  }
+
+  // núcleo
   const cr = 95 + level * 20;
   const core = ctx.createRadialGradient(c, c, 0, c, c, cr);
   core.addColorStop(0, 'rgba(255,255,255,0.95)');
   core.addColorStop(0.25, hexA(hud, 0.9));
   core.addColorStop(1, hexA(hud, 0));
   ctx.fillStyle = core;
-  ctx.beginPath();
-  ctx.arc(c, c, cr, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(c, c, cr, 0, TAU); ctx.fill();
 
   requestAnimationFrame(drawOrb);
 }
@@ -601,6 +677,11 @@ const TOOLS = [
     input_schema: { type: 'object', properties: { color: { type: 'string', enum: Object.keys(COLORS) } }, required: ['color'] }
   },
   {
+    name: 'datos_economicos',
+    description: 'Da el precio del dólar (TRM) y del euro en pesos colombianos y las noticias económicas y financieras más importantes del día. Con noticias en false solo da el dólar y el euro.',
+    input_schema: { type: 'object', properties: { noticias: { type: 'boolean' } } }
+  },
+  {
     name: 'resumen_del_dia',
     description: 'Da el resumen del día: hora, clima, agenda de las próximas 24 horas, tareas pendientes y notas. Úsala cuando el usuario salude con buenos días o pida su resumen.',
     input_schema: { type: 'object', properties: {} }
@@ -748,6 +829,9 @@ async function runTool(name, input) {
       logAction('Color cambiado', input.color);
       return 'Color cambiado a ' + input.color + '.';
     }
+    case 'datos_economicos':
+      logAction('Datos económicos');
+      return await Eco.texto({ noticias: input.noticias !== false });
     case 'resumen_del_dia':
       return await resumen();
     case 'activar_rutina':
@@ -959,6 +1043,7 @@ async function resumen() {
     } catch {}
   }
   if (notes.length) p.push(`Tienes ${notes.length} ${notes.length === 1 ? 'nota guardada' : 'notas guardadas'}.`);
+  try { p.push(await Eco.texto()); } catch {}
   logAction('Resumen del día');
   return p.join(' ');
 }
@@ -1032,6 +1117,7 @@ async function localBrain(text) {
     return setAlarm(hs, mi);
   }
   if (/buenos d[ií]as|buenas tardes|buenas noches|dame (?:el |mi )?resumen|resumen del d[ií]a|mi resumen/.test(s)) return await resumen();
+  if (/d[oó]lar|\beuro\b|\btrm\b|tasa de cambio|noticias (?:econ[oó]micas|financieras)|econom[ií]a/.test(s) && !/\b(?:abre|busca)\b/.test(s)) return await Eco.texto({ noticias: /noticias|econom[ií]a|financier/.test(s) });
   if ((m = s.match(/(?:modo|rutina(?: de)?)\s+(estudio|descanso|noche)/))) return await rutina(m[1]);
   if ((m = s.match(/(?:recuerda|acu[eé]rdate)\s+que\s+(.+)/))) return await runTool('guardar_recuerdo', { texto: m[1] });
   if (/qu[eé] recuerdas|qu[eé] sabes de m[ií]/.test(s)) return recuerdos.length ? 'Recuerdo esto: ' + recuerdos.join('. ') + '.' : 'Aún no me has pedido recordar nada.';
@@ -1310,11 +1396,12 @@ function greeting() {
 
 $('btnBoot').addEventListener('click', () => {
   $('boot').classList.add('hide');
+  document.body.classList.add('ready');
   getAC();
   initRec();
   const lines = ['Núcleo de voz', 'Enlace con la IA', 'Módulos de acciones', 'Interfaz HUD'];
   lines.forEach((l, i) => setTimeout(() => logAction(l + ': en línea'), 250 * (i + 1)));
-  setTimeout(() => logAction('Código versión 16'), 1300);
+  setTimeout(() => logAction('Código versión 17'), 1300);
 
   const g = greeting();
   $('replyText').textContent = g;
@@ -1346,6 +1433,8 @@ $('btnDrive').addEventListener('click', async () => {
     logAction('Permiso de Drive concedido');
   } catch (err) { logAction('No se pudo dar permiso a Drive', err.message, true); }
 });
+Eco.pintar();
+setInterval(Eco.pintar, 30 * 60 * 1000);
 setInterval(revisarAgenda, 2 * 60 * 1000);
 setTimeout(revisarAgenda, 20000);
 PC.init(cfg.pcToken);
@@ -1359,4 +1448,11 @@ document.addEventListener('google-connected', () => {
   $('btnGoogle').classList.add('on');
   logAction('Google conectado');
 });
+document.querySelectorAll('[data-cmd]').forEach(b => { b.onclick = () => handleCommand(b.dataset.cmd); });
+new MutationObserver(() => {
+  const r = $('replyText');
+  r.classList.remove('pop');
+  void r.offsetWidth;
+  r.classList.add('pop');
+}).observe($('replyText'), { childList: true, characterData: true, subtree: true });
 drawOrb();
