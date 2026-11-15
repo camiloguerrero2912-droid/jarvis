@@ -26,6 +26,15 @@ const cfg = {
   color:    store.get('color', '#19e3ff'),
   googleClientId: store.get('gclient', ''),
   pcToken: store.get('pcToken', ''),
+  elKey: store.get('elKey', ''),
+  elVoice: store.get('elVoice', ''),
+  elModel: store.get('elModel', 'eleven_flash_v2_5'),
+  elMax: store.get('elMax', 800),
+  vozMotor: store.get('vozMotor', store.get('elKey', '') ? 'elevenlabs' : 'navegador'),
+  gvKey: store.get('gvKey', ''),
+  gvVoice: store.get('gvVoice', 'Charon'),
+  gvModel: store.get('gvModel', 'gemini-3.1-flash-tts-preview'),
+  gvTono: store.get('gvTono', ''),
   speak:    store.get('speak', true)
 };
 
@@ -265,7 +274,7 @@ function loadVoices() {
   if (!('speechSynthesis' in window)) return;
   voices = speechSynthesis.getVoices().filter(v => /^es/i.test(v.lang));
   const sel = $('setVoice');
-  sel.innerHTML = '';
+  sel.innerHTML = '<option value="">Automática (la más natural disponible)</option>';
   voices.forEach(v => {
     const o = document.createElement('option');
     o.value = v.voiceURI;
@@ -275,9 +284,14 @@ function loadVoices() {
   });
 }
 function pickVoice() {
-  return voices.find(v => v.voiceURI === cfg.voiceURI)
-      || voices.find(v => /es-(CO|MX|US|419)/i.test(v.lang))
-      || voices[0];
+  const by = f => voices.find(f);
+  return by(v => v.voiceURI === cfg.voiceURI)
+    || by(v => /Natural|Online/i.test(v.name) && /es-CO/i.test(v.lang))
+    || by(v => /Natural|Online/i.test(v.name))
+    || by(v => /Google/i.test(v.name) && /es-(US|419|MX)/i.test(v.lang))
+    || by(v => /Google/i.test(v.name))
+    || by(v => /es-(CO|MX|US|419)/i.test(v.lang))
+    || voices[0];
 }
 
 function cleanForSpeech(s) {
@@ -289,7 +303,119 @@ function cleanForSpeech(s) {
     .trim();
 }
 
+/* ---------- Voz natural en la nube: Gemini (gratis con límites) o ElevenLabs ---------- */
+let elAudio = null, elRun = 0, elOff = false;
+const usoKey = m => 'uso_' + m + '_' + new Date().toISOString().slice(0, 7);
+const usoVoz = m => store.get(usoKey(m), 0) || 0;
+
+function motorVoz() {
+  if (elOff) return null;
+  if (cfg.vozMotor === 'gemini' && (cfg.gvKey || (cfg.provider === 'gemini' && cfg.apiKey))) return 'gemini';
+  if (cfg.vozMotor === 'elevenlabs' && cfg.elKey && cfg.elVoice) return 'elevenlabs';
+  return null;
+}
+
 function speak(text) {
+  if (!cfg.speak) return Promise.resolve();
+  const motor = motorVoz();
+  if (motor) {
+    const clean = cleanForSpeech(text);
+    if (clean && clean.length <= cfg.elMax) return speakCloud(clean, motor);
+  }
+  return speakBrowser(text);
+}
+
+const elTTS = c => fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(cfg.elVoice)}?output_format=mp3_44100_128`, {
+  method: 'POST',
+  headers: { 'xi-api-key': cfg.elKey, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+  body: JSON.stringify({ text: c, model_id: cfg.elModel, voice_settings: { stability: 0.5, similarity_boost: 0.8, style: 0.2, use_speaker_boost: true } })
+}).then(async r => {
+  if (!r.ok) throw new Error(`ElevenLabs ${r.status}: ${(await r.text()).slice(0, 160)}`);
+  return URL.createObjectURL(await r.blob());
+});
+
+function pcmToWav(pcm, rate) {
+  const h = new ArrayBuffer(44), v = new DataView(h);
+  const w = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + pcm.length, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, pcm.length, true);
+  return new Blob([h, pcm], { type: 'audio/wav' });
+}
+
+async function geminiTTS(c) {
+  const key = cfg.gvKey || (cfg.provider === 'gemini' ? cfg.apiKey : '');
+  const texto = cfg.gvTono ? `Dilo con tono ${cfg.gvTono}: ${c}` : c;
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.gvModel)}:generateContent`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: texto }] }],
+      generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: cfg.gvVoice } } } }
+    })
+  });
+  if (!r.ok) throw new Error(`Gemini voz ${r.status}: ${(await r.text()).slice(0, 160)}`);
+  const j = await r.json();
+  const part = j.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+  if (!part) throw new Error('Gemini voz no devolvió audio');
+  const pcm = Uint8Array.from(atob(part.inlineData.data), ch => ch.charCodeAt(0));
+  const m = /rate=(\d+)/.exec(part.inlineData.mimeType || '');
+  return URL.createObjectURL(pcmToWav(pcm, m ? Number(m[1]) : 24000));
+}
+
+async function speakCloud(clean, motor) {
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  if (elAudio) { elAudio.pause(); elAudio = null; }
+  const run = ++elRun;
+
+  const parts = clean.match(/[^.!?;:\n]+[.!?;:]?/g) || [clean];
+  const chunks = [];
+  let cur = '';
+  for (const p of parts) {
+    if (cur && (cur + p).length > 280) { chunks.push(cur.trim()); cur = p; } else cur += p;
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+
+  const get = motor === 'gemini' ? geminiTTS : elTTS;
+  let started = false, i = 0;
+  const finish = () => {
+    if (!started) return;
+    speaking = false;
+    G.duck(false);
+    if (!busy) setState('idle');
+    resumeListening();
+  };
+  let next = get(chunks[0]);
+  try {
+    for (i = 0; i < chunks.length; i++) {
+      const url = await next;
+      if (run !== elRun) { URL.revokeObjectURL(url); return; }
+      next = i + 1 < chunks.length ? get(chunks[i + 1]) : null;
+      if (next) next.catch(() => {});
+      if (!started) { started = true; speaking = true; setState('speaking'); G.duck(true); pauseListening(); }
+      store.set(usoKey(motor), usoVoz(motor) + chunks[i].length);
+      await new Promise(res => {
+        const a = new Audio(url);
+        elAudio = a;
+        a.onended = res; a.onerror = res;
+        a.play().catch(res);
+      });
+      URL.revokeObjectURL(url);
+      if (run !== elRun) return;
+    }
+    elAudio = null;
+    finish();
+  } catch (e) {
+    elAudio = null;
+    if (/quota|429|401|403|RESOURCE_EXHAUSTED|not found|404/i.test(e.message)) elOff = true;
+    logAction('La voz en la nube falló, uso la voz normal', e.message, true);
+    finish();
+    if (run === elRun) await speakBrowser(chunks.slice(i).join(' '));
+  }
+}
+
+function speakBrowser(text) {
   return new Promise(resolve => {
     if (!cfg.speak || !('speechSynthesis' in window)) { resolve(); return; }
     speechSynthesis.cancel();
@@ -320,8 +446,10 @@ function speak(text) {
 }
 
 function stopSpeaking() {
+  elRun++;
+  if (elAudio) { const a = elAudio; elAudio = null; a.pause(); if (a.onended) a.onended(); }
   if ('speechSynthesis' in window) speechSynthesis.cancel();
-  if (speaking) { speaking = false; setState('idle'); resumeListening(); }
+  if (speaking) { speaking = false; G.duck(false); setState('idle'); resumeListening(); }
 }
 
 /* =====================================================================
@@ -1324,6 +1452,16 @@ function openSettings() {
   $('setColor').value = cfg.color;
   $('setGoogle').value = cfg.googleClientId;
   $('setPc').value = cfg.pcToken;
+  $('setElKey').value = cfg.elKey;
+  $('setElVoice').value = cfg.elVoice;
+  $('setElModel').value = cfg.elModel;
+  $('setElMax').value = cfg.elMax;
+  $('setMotor').value = cfg.vozMotor;
+  $('setGvKey').value = cfg.gvKey;
+  $('setGvVoice').value = cfg.gvVoice;
+  $('setGvModel').value = cfg.gvModel;
+  $('setGvTono').value = cfg.gvTono;
+  $('elUsage').textContent = `Este mes Jarvis envió unos ${usoVoz('gemini')} caracteres a Gemini y ${usoVoz('elevenlabs')} a ElevenLabs (cálculo propio; el gasto real de ElevenLabs está en elevenlabs.io/app/usage). Si una respuesta es más larga que el máximo, se usa la voz normal para ahorrar.`;
   loadVoices();
   dlg.showModal();
 }
@@ -1341,6 +1479,17 @@ $('settingsForm').addEventListener('submit', () => {
   cfg.pcToken = $('setPc').value.trim();
   store.set('pcToken', cfg.pcToken);
   PC.init(cfg.pcToken);
+  cfg.elKey = $('setElKey').value.trim();
+  cfg.elVoice = $('setElVoice').value.trim();
+  cfg.elModel = $('setElModel').value;
+  cfg.elMax = Math.max(100, Number($('setElMax').value) || 800);
+  cfg.vozMotor = $('setMotor').value;
+  cfg.gvKey = $('setGvKey').value.trim();
+  cfg.gvVoice = $('setGvVoice').value;
+  cfg.gvModel = $('setGvModel').value.trim() || 'gemini-3.1-flash-tts-preview';
+  cfg.gvTono = $('setGvTono').value.trim();
+  ['elKey', 'elVoice', 'elModel', 'elMax', 'vozMotor', 'gvKey', 'gvVoice', 'gvModel', 'gvTono'].forEach(k => store.set(k, cfg[k]));
+  elOff = false;
   G.init(cfg.googleClientId);
   ['apiKey', 'provider', 'model', 'name', 'rate', 'voiceURI', 'color'].forEach(k => store.set(k, cfg[k]));
   applyColor(cfg.color);
@@ -1352,6 +1501,11 @@ $('setProvider').addEventListener('change', () => { $('setModel').value = DEFAUL
 $('btnTestVoice').addEventListener('click', () => {
   cfg.voiceURI = $('setVoice').value || cfg.voiceURI;
   cfg.rate = Number($('setRate').value) || cfg.rate;
+  cfg.elKey = $('setElKey').value.trim(); cfg.elVoice = $('setElVoice').value.trim();
+  cfg.elModel = $('setElModel').value; elOff = false;
+  cfg.vozMotor = $('setMotor').value; cfg.gvKey = $('setGvKey').value.trim(); cfg.gvVoice = $('setGvVoice').value;
+  cfg.gvModel = $('setGvModel').value.trim() || cfg.gvModel; cfg.gvTono = $('setGvTono').value.trim();
+  cfg.provider = $('setProvider').value; cfg.apiKey = $('setKey').value.trim() || cfg.apiKey;
   const prev = cfg.speak; cfg.speak = true;
   speak(`Sistemas en línea, ${$('setName').value || cfg.name}.`).then(() => { cfg.speak = prev; });
 });
@@ -1414,7 +1568,7 @@ $('btnBoot').addEventListener('click', () => {
   initRec();
   const lines = ['Núcleo de voz', 'Enlace con la IA', 'Módulos de acciones', 'Interfaz HUD'];
   lines.forEach((l, i) => setTimeout(() => logAction(l + ': en línea'), 250 * (i + 1)));
-  setTimeout(() => logAction('Código versión 18'), 1300);
+  setTimeout(() => logAction('Código versión 20'), 1300);
 
   const g = greeting();
   $('replyText').textContent = g;
