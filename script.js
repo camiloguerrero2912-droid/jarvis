@@ -7,6 +7,17 @@
 
 const $ = id => document.getElementById(id);
 
+/* Si index.html quedó viejo en GitHub, avisa en vez de fallar en silencio */
+(function verificarArchivos() {
+  const ids = ['setMotor', 'setGvKey', 'setGvVoice', 'setGvModel', 'setGvTono', 'setElKey', 'setPc', 'btnStopAlarm', 'btnExitFull', 'btnDrive', 'tickerMove', 'fxUsd', 'replyText'];
+  const faltan = ids.filter(id => !document.getElementById(id));
+  if (!faltan.length) return;
+  const d = document.createElement('div');
+  d.textContent = 'Archivos desactualizados (faltan en index.html: ' + faltan.join(', ') + '). Sube index.html, style.css y script.js a GitHub y recarga con Ctrl + F5.';
+  d.style.cssText = 'position:fixed;bottom:46px;left:50%;transform:translateX(-50%);max-width:min(900px,92vw);z-index:200;padding:10px 18px;background:#b71c1c;color:#fff;font:600 15px sans-serif;text-align:center;pointer-events:none;border:2px solid #fff';
+  document.body.appendChild(d);
+})();
+
 /* ---------- Configuración guardada ---------- */
 const store = {
   get(k, d) {
@@ -1443,51 +1454,55 @@ async function refreshWeather() {
    ===================================================================== */
 const dlg = $('settings');
 
+const getv = (id, d = '') => { const e = $(id); return e ? e.value : d; };
+const setv = (id, v) => { const e = $(id); if (e) e.value = v; };
+
 function openSettings() {
-  $('setProvider').value = cfg.provider;
-  $('setKey').value = cfg.apiKey;
-  $('setModel').value = cfg.model;
-  $('setName').value = cfg.name;
-  $('setRate').value = cfg.rate;
-  $('setColor').value = cfg.color;
-  $('setGoogle').value = cfg.googleClientId;
-  $('setPc').value = cfg.pcToken;
-  $('setElKey').value = cfg.elKey;
-  $('setElVoice').value = cfg.elVoice;
-  $('setElModel').value = cfg.elModel;
-  $('setElMax').value = cfg.elMax;
-  $('setMotor').value = cfg.vozMotor;
-  $('setGvKey').value = cfg.gvKey;
-  $('setGvVoice').value = cfg.gvVoice;
-  $('setGvModel').value = cfg.gvModel;
-  $('setGvTono').value = cfg.gvTono;
-  $('elUsage').textContent = `Este mes Jarvis envió unos ${usoVoz('gemini')} caracteres a Gemini y ${usoVoz('elevenlabs')} a ElevenLabs (cálculo propio; el gasto real de ElevenLabs está en elevenlabs.io/app/usage). Si una respuesta es más larga que el máximo, se usa la voz normal para ahorrar.`;
-  loadVoices();
-  dlg.showModal();
+  setv('setProvider', cfg.provider);
+  setv('setKey', cfg.apiKey);
+  setv('setModel', cfg.model);
+  setv('setName', cfg.name);
+  setv('setRate', cfg.rate);
+  setv('setColor', cfg.color);
+  setv('setGoogle', cfg.googleClientId);
+  setv('setPc', cfg.pcToken);
+  setv('setElKey', cfg.elKey);
+  setv('setElVoice', cfg.elVoice);
+  setv('setElModel', cfg.elModel);
+  setv('setElMax', cfg.elMax);
+  setv('setMotor', cfg.vozMotor);
+  setv('setGvKey', cfg.gvKey);
+  setv('setGvVoice', cfg.gvVoice);
+  setv('setGvModel', cfg.gvModel);
+  setv('setGvTono', cfg.gvTono);
+  const u = $('elUsage');
+  if (u) u.textContent = `Este mes Jarvis envió unos ${usoVoz('gemini')} caracteres a Gemini y ${usoVoz('elevenlabs')} a ElevenLabs (cálculo propio; el gasto real de ElevenLabs está en elevenlabs.io/app/usage). Si una respuesta es más larga que el máximo, se usa la voz normal para ahorrar.`;
+  try { loadVoices(); } catch {}
+  if (!dlg.open) dlg.showModal();
 }
 
 $('settingsForm').addEventListener('submit', () => {
-  cfg.apiKey = $('setKey').value.trim();
-  cfg.provider = $('setProvider').value;
-  cfg.model = $('setModel').value.trim() || DEFAULT_MODELS[cfg.provider];
-  cfg.name = $('setName').value.trim() || 'Camilo';
-  cfg.rate = Number($('setRate').value) || 1.05;
-  cfg.voiceURI = $('setVoice').value || '';
-  cfg.color = $('setColor').value;
-  cfg.googleClientId = $('setGoogle').value.trim();
+  cfg.apiKey = getv('setKey', cfg.apiKey).trim();
+  cfg.provider = getv('setProvider', cfg.provider);
+  cfg.model = getv('setModel', cfg.model).trim() || DEFAULT_MODELS[cfg.provider];
+  cfg.name = getv('setName', cfg.name).trim() || 'Camilo';
+  cfg.rate = Number(getv('setRate', cfg.rate)) || 1.05;
+  cfg.voiceURI = getv('setVoice', cfg.voiceURI) || '';
+  cfg.color = getv('setColor', cfg.color);
+  cfg.googleClientId = getv('setGoogle', cfg.googleClientId).trim();
   store.set('gclient', cfg.googleClientId);
-  cfg.pcToken = $('setPc').value.trim();
+  cfg.pcToken = getv('setPc', cfg.pcToken).trim();
   store.set('pcToken', cfg.pcToken);
   PC.init(cfg.pcToken);
-  cfg.elKey = $('setElKey').value.trim();
-  cfg.elVoice = $('setElVoice').value.trim();
-  cfg.elModel = $('setElModel').value;
-  cfg.elMax = Math.max(100, Number($('setElMax').value) || 800);
-  cfg.vozMotor = $('setMotor').value;
-  cfg.gvKey = $('setGvKey').value.trim();
-  cfg.gvVoice = $('setGvVoice').value;
-  cfg.gvModel = $('setGvModel').value.trim() || 'gemini-3.1-flash-tts-preview';
-  cfg.gvTono = $('setGvTono').value.trim();
+  cfg.elKey = getv('setElKey', cfg.elKey).trim();
+  cfg.elVoice = getv('setElVoice', cfg.elVoice).trim();
+  cfg.elModel = getv('setElModel', cfg.elModel);
+  cfg.elMax = Math.max(100, Number(getv('setElMax', cfg.elMax)) || 800);
+  cfg.vozMotor = getv('setMotor', cfg.vozMotor);
+  cfg.gvKey = getv('setGvKey', cfg.gvKey).trim();
+  cfg.gvVoice = getv('setGvVoice', cfg.gvVoice);
+  cfg.gvModel = getv('setGvModel', cfg.gvModel).trim() || 'gemini-3.1-flash-tts-preview';
+  cfg.gvTono = getv('setGvTono', cfg.gvTono).trim();
   ['elKey', 'elVoice', 'elModel', 'elMax', 'vozMotor', 'gvKey', 'gvVoice', 'gvModel', 'gvTono'].forEach(k => store.set(k, cfg[k]));
   elOff = false;
   G.init(cfg.googleClientId);
@@ -1497,17 +1512,17 @@ $('settingsForm').addEventListener('submit', () => {
 });
 
 $('btnSettings').addEventListener('click', openSettings);
-$('setProvider').addEventListener('change', () => { $('setModel').value = DEFAULT_MODELS[$('setProvider').value]; });
+$('setProvider').addEventListener('change', () => { setv('setModel', DEFAULT_MODELS[getv('setProvider', cfg.provider)]); });
 $('btnTestVoice').addEventListener('click', () => {
-  cfg.voiceURI = $('setVoice').value || cfg.voiceURI;
-  cfg.rate = Number($('setRate').value) || cfg.rate;
-  cfg.elKey = $('setElKey').value.trim(); cfg.elVoice = $('setElVoice').value.trim();
-  cfg.elModel = $('setElModel').value; elOff = false;
-  cfg.vozMotor = $('setMotor').value; cfg.gvKey = $('setGvKey').value.trim(); cfg.gvVoice = $('setGvVoice').value;
-  cfg.gvModel = $('setGvModel').value.trim() || cfg.gvModel; cfg.gvTono = $('setGvTono').value.trim();
-  cfg.provider = $('setProvider').value; cfg.apiKey = $('setKey').value.trim() || cfg.apiKey;
+  cfg.voiceURI = getv('setVoice', cfg.voiceURI) || '';
+  cfg.rate = Number(getv('setRate', cfg.rate)) || cfg.rate;
+  cfg.elKey = getv('setElKey', cfg.elKey).trim(); cfg.elVoice = getv('setElVoice', cfg.elVoice).trim();
+  cfg.elModel = getv('setElModel', cfg.elModel); elOff = false;
+  cfg.vozMotor = getv('setMotor', cfg.vozMotor); cfg.gvKey = getv('setGvKey', cfg.gvKey).trim(); cfg.gvVoice = getv('setGvVoice', cfg.gvVoice);
+  cfg.gvModel = getv('setGvModel', cfg.gvModel).trim() || cfg.gvModel; cfg.gvTono = getv('setGvTono', cfg.gvTono).trim();
+  cfg.provider = getv('setProvider', cfg.provider); cfg.apiKey = getv('setKey', cfg.apiKey).trim() || cfg.apiKey;
   const prev = cfg.speak; cfg.speak = true;
-  speak(`Sistemas en línea, ${$('setName').value || cfg.name}.`).then(() => { cfg.speak = prev; });
+  speak(`Sistemas en línea, ${getv('setName', cfg.name) || cfg.name}.`).then(() => { cfg.speak = prev; });
 });
 $('btnClearChat').addEventListener('click', () => {
   history = []; store.set('history', history);
@@ -1568,7 +1583,7 @@ $('btnBoot').addEventListener('click', () => {
   initRec();
   const lines = ['Núcleo de voz', 'Enlace con la IA', 'Módulos de acciones', 'Interfaz HUD'];
   lines.forEach((l, i) => setTimeout(() => logAction(l + ': en línea'), 250 * (i + 1)));
-  setTimeout(() => logAction('Código versión 20'), 1300);
+  setTimeout(() => logAction('Código versión 21'), 1300);
 
   const g = greeting();
   $('replyText').textContent = g;
