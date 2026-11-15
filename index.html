@@ -178,6 +178,63 @@
         <input id="setRate" type="range" min="0.7" max="1.4" step="0.05">
       </label>
 
+      <label>Motor de voz
+        <select id="setMotor">
+          <option value="navegador">Navegador (gratis, sin límites)</option>
+          <option value="gemini">Gemini (gratis con límites, voz natural)</option>
+          <option value="elevenlabs">ElevenLabs (créditos limitados)</option>
+        </select>
+      </label>
+
+      <label>Gemini voz: clave (vacía si ya usas Gemini como cerebro)
+        <input id="setGvKey" type="password" placeholder="AIza…" autocomplete="off">
+      </label>
+
+      <label>Gemini voz: nombre de la voz
+        <select id="setGvVoice">
+          <option value="Charon">Charon (informativa)</option>
+          <option value="Algieba">Algieba (suave)</option>
+          <option value="Orus">Orus (firme)</option>
+          <option value="Alnilam">Alnilam (firme)</option>
+          <option value="Rasalgethi">Rasalgethi (informativa)</option>
+          <option value="Iapetus">Iapetus (clara)</option>
+          <option value="Puck">Puck (animada)</option>
+          <option value="Fenrir">Fenrir (entusiasta)</option>
+          <option value="Kore">Kore (firme)</option>
+          <option value="Despina">Despina (suave)</option>
+          <option value="Aoede">Aoede (ligera)</option>
+          <option value="Sulafat">Sulafat (cálida)</option>
+        </select>
+      </label>
+
+      <label>Gemini voz: modelo
+        <input id="setGvModel" type="text" placeholder="gemini-3.1-flash-tts-preview" autocomplete="off">
+      </label>
+
+      <label>Gemini voz: tono (opcional, por ejemplo: sereno y elegante)
+        <input id="setGvTono" type="text" placeholder="sereno y elegante" autocomplete="off">
+      </label>
+
+      <label>ElevenLabs: clave de la API (opcional, voz más natural)
+        <input id="setElKey" type="password" placeholder="sk_…" autocomplete="off">
+      </label>
+
+      <label>ElevenLabs: ID de la voz
+        <input id="setElVoice" type="text" placeholder="JBFqnCBsd6RMkjVDRZzb (George)" autocomplete="off">
+      </label>
+
+      <label>ElevenLabs: modelo
+        <select id="setElModel">
+          <option value="eleven_flash_v2_5">Flash v2.5 (rápido y más económico)</option>
+          <option value="eleven_multilingual_v2">Multilingual v2 (más natural, gasta más)</option>
+        </select>
+      </label>
+
+      <label>Voz en la nube: máximo de caracteres por respuesta
+        <input id="setElMax" type="number" min="100" max="3000" step="50">
+      </label>
+      <p id="elUsage" class="muted tiny"></p>
+
       <label>Color de la interfaz
         <select id="setColor">
           <option value="#19e3ff">Cian</option>
