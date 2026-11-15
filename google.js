@@ -88,6 +88,25 @@ const G = (() => {
     return all.slice(0, 12).map(e => `${e.name} (${e.cal}): ${e.t.toLocaleString('es-CO', e.dt ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' })}`).join('\n');
   }
 
+  async function cancelarEvento({ titulo = '', fecha = '', todos = false }) {
+    if (!titulo && !fecha) return 'Dime cuál cancelar: el nombre del evento o recordatorio, o su fecha. No voy a borrar todo sin saber cuál.';
+    const ini = fecha ? new Date(fecha + 'T00:00:00') : new Date();
+    if (isNaN(ini)) throw new Error('Fecha no válida: ' + fecha);
+    const fin = fecha ? new Date(ini.getTime() + 864e5) : new Date(ini.getTime() + 60 * 864e5);
+    const q = titulo ? '&q=' + encodeURIComponent(titulo) : '';
+    const d = await api(`${CAL}?singleEvents=true&orderBy=startTime&maxResults=20&timeMin=${ini.toISOString()}&timeMax=${fin.toISOString()}${q}`);
+    const items = d.items || [];
+    if (!items.length) return 'No encontré eventos ni recordatorios que coincidan.';
+    const cuando = e => new Date(e.start.dateTime || e.start.date).toLocaleString('es-CO', e.start.dateTime ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' });
+    const lista = items.map(e => `${e.summary || '(sin título)'}, ${cuando(e)}`);
+    if (items.length > 1 && !todos) {
+      return 'Encontré varios: ' + lista.join('; ') + '. Dime cuál cancelar con su nombre exacto o la fecha, o pide cancelar todos.';
+    }
+    if (!confirm('¿Cancelar en Google Calendar?\n\n' + lista.join('\n'))) return 'El usuario canceló la operación, no se borró nada.';
+    for (const e of items) await api(`${CAL}/${encodeURIComponent(e.id)}`, { method: 'DELETE' });
+    return 'Cancelé en Calendar: ' + lista.join('; ') + '.';
+  }
+
   async function proximos(minutos) {
     const now = new Date(), end = new Date(now.getTime() + minutos * 6e4);
     const cals = (await api('https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader')).items || [];
@@ -262,6 +281,8 @@ const G = (() => {
     { name: 'eventos_proximos', description: 'Lista los próximos eventos de Google Calendar.', input_schema: obj({ dias: { type: 'number', description: 'Días hacia adelante (por defecto 7)' } }) },
     { name: 'crear_evento', description: 'Crea un evento en Google Calendar con alarma. Úsala también para recordatorios que deben sonar aunque la pestaña esté cerrada (usa recordatorios_min [0]). Calcula la fecha desde la fecha actual indicada.',
       input_schema: obj({ titulo: { type: 'string' }, inicio: { type: 'string', description: 'Fecha y hora local ISO, ej. 2026-11-08T15:00:00' }, duracion_min: { type: 'number' }, recordatorios_min: { type: 'array', items: { type: 'number' }, description: 'Minutos antes para avisar' }, descripcion: { type: 'string' } }, ['titulo', 'inicio']) },
+    { name: 'cancelar_evento', description: 'Cancela (borra) un evento o recordatorio de Google Calendar, buscándolo por parte de su título y, si hace falta, por fecha. Si hay varios que coinciden, devuelve la lista para que el usuario elija; con todos en true cancela todos. El usuario debe confirmar en pantalla.',
+      input_schema: obj({ titulo: { type: 'string', description: 'Parte del título del evento o recordatorio' }, fecha: { type: 'string', description: 'YYYY-MM-DD, opcional' }, todos: { type: 'boolean' } }) },
     { name: 'correos_recientes', description: 'Lista correos de Gmail (id, remitente, asunto). consulta usa la sintaxis de búsqueda de Gmail, ej. is:unread o from:alguien.', input_schema: obj({ consulta: { type: 'string' }, max: { type: 'number' } }) },
     { name: 'leer_correo', description: 'Lee el texto de un correo por su id.', input_schema: obj({ id: { type: 'string' } }, ['id']) },
     { name: 'enviar_correo', description: 'Envía un correo desde Gmail. El usuario debe confirmar en pantalla antes de que salga.', input_schema: obj({ para: { type: 'string' }, asunto: { type: 'string' }, cuerpo: { type: 'string' } }, ['para', 'asunto', 'cuerpo']) },
@@ -273,7 +294,7 @@ const G = (() => {
   ];
 
   const handlers = {
-    eventos_proximos: eventosProximos, crear_evento: crearEvento,
+    eventos_proximos: eventosProximos, crear_evento: crearEvento, cancelar_evento: cancelarEvento,
     correos_recientes: correosRecientes, leer_correo: leerCorreo, enviar_correo: enviarCorreo,
     tareas_listar: tareasListar, tarea_crear: tareaCrear, tarea_completar: tareaCompletar,
     reproducir_musica: reproducir, controlar_musica: async i => controlar(i)
