@@ -128,7 +128,7 @@ body {
   background: linear-gradient(90deg, transparent, rgba(var(--hud-rgb), .8), transparent);
 }
 .brand { display: flex; align-items: center; gap: 12px; }
-.logo { width: 38px; height: 38px; color: var(--hud); filter: drop-shadow(0 0 6px rgba(var(--hud-rgb), .8)); animation: spin 24s linear infinite; }
+.logo { width: 38px; height: 38px; color: var(--hud); animation: spin 24s linear infinite; }
 .brand-name {
   font-family: var(--font-hud); font-weight: 800; font-size: 19px; letter-spacing: .22em; color: var(--hud);
   text-shadow: 0 0 14px rgba(var(--hud-rgb), .6);
@@ -227,7 +227,7 @@ body[data-state="listening"] .live { color: #3dff9a; }
   text-shadow: 0 0 18px rgba(var(--hud-rgb), .45);
 }
 .center .reply.pop { animation: pop .55s cubic-bezier(.2, .8, .2, 1); }
-@keyframes pop { from { opacity: 0; transform: translateY(10px); filter: blur(4px); } }
+@keyframes pop { from { opacity: 0; transform: translateY(10px); } }
 
 .suggest { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 720px; }
 .suggest button {
@@ -258,11 +258,10 @@ body[data-state="listening"] .live { color: #3dff9a; }
   font-family: var(--font-hud); font-size: 11px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--void); background: var(--hud);
   clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
 }
-.ticker-track {
-  flex: 1; overflow: hidden;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent);
-}
+.ticker-track { position: relative; flex: 1; overflow: hidden; }
+.ticker-track::before, .ticker-track::after { content: ''; position: absolute; top: 0; bottom: 0; width: 40px; z-index: 2; pointer-events: none; }
+.ticker-track::before { left: 0; background: linear-gradient(90deg, rgba(2, 8, 14, .95), transparent); }
+.ticker-track::after { right: 0; background: linear-gradient(270deg, rgba(2, 8, 14, .95), transparent); }
 .ticker-move { display: inline-flex; white-space: nowrap; animation: tick var(--dur, 60s) linear infinite; }
 .ticker-move:hover { animation-play-state: paused; }
 .ticker-move span { font-size: 16px; color: var(--ice); padding-right: 54px; }
@@ -321,6 +320,29 @@ body[data-state="listening"] .live { color: #3dff9a; }
   .bar { margin-top: 6px; }
   .orb-wrap { width: min(48vh, 520px); }
 }
+
+/* ---------- Modos de rendimiento (botón "Efectos" de la barra superior) ---------- */
+body[data-perf="ligero"] .bg-grid, body[data-perf="minimo"] .bg-grid,
+body[data-perf="ligero"] .logo, body[data-perf="minimo"] .logo,
+body[data-perf="ligero"] .dot, body[data-perf="minimo"] .dot,
+body[data-perf="ligero"] .log li, body[data-perf="minimo"] .log li { animation: none; }
+body[data-perf="ligero"] .scanlines, body[data-perf="minimo"] .scanlines,
+body[data-perf="ligero"] .vignette, body[data-perf="minimo"] .vignette { display: none; }
+body[data-perf="ligero"] .card, body[data-perf="minimo"] .card {
+  clip-path: none; box-shadow: none; transition: none; animation: none !important; background: rgba(4, 16, 28, .9);
+}
+body[data-perf="ligero"] .chip, body[data-perf="minimo"] .chip,
+body[data-perf="ligero"] .cmd, body[data-perf="minimo"] .cmd,
+body[data-perf="ligero"] .btn-main, body[data-perf="minimo"] .btn-main,
+body[data-perf="ligero"] .ticker-tag, body[data-perf="minimo"] .ticker-tag { clip-path: none; }
+body[data-perf="ligero"] .center > *, body[data-perf="minimo"] .center > *,
+body[data-perf="ligero"] .center .reply.pop, body[data-perf="minimo"] .center .reply.pop { animation: none !important; }
+body[data-perf="ligero"] *, body[data-perf="minimo"] * { text-shadow: none !important; }
+body[data-perf="minimo"] .ticker-move { animation: none; }
+body[data-perf="minimo"] .frame, body[data-perf="minimo"] .boot-rings { display: none; }
+body[data-perf="minimo"] * { transition: none !important; }
+
+@media (max-width: 1500px) { .brand-sub { display: none; } }
 
 /* ---------- Adaptable ---------- */
 @media (max-width: 1180px) {
