@@ -74,6 +74,7 @@ function setFavicon(hex) {
 function applyColor(hex) {
   hud = hex;
   setFavicon(hex);
+  if (typeof drawBase === 'function' && baseCv) drawBase();
   document.documentElement.style.setProperty('--hud', hex);
   document.documentElement.style.setProperty('--hud-rgb', hexToRgb(hex).join(','));
 }
@@ -117,35 +118,139 @@ const cv = $('orb');
 const ctx = cv.getContext('2d');
 let t = 0, level = 0.15;
 
-function ring(c, r, w, dash, rot, a) {
-  ctx.save();
-  ctx.translate(c, c);
-  ctx.rotate(rot);
-  ctx.setLineDash(dash);
-  ctx.lineWidth = w;
-  ctx.strokeStyle = hexA(hud, a);
-  ctx.beginPath();
-  ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
+const TAU = Math.PI * 2;
+
+/* Modos de rendimiento: completos, ligeros (por defecto en equipos de 4 GB o menos) y mínimos */
+const PERF = {
+  normal: { res: 520, fps: 40, idle: 20, rot: true,  sweep: true,  pts: 120, waves: 3 },
+  ligero: { res: 360, fps: 20, idle: 8,  rot: false, sweep: false, pts: 64,  waves: 2 },
+  minimo: { res: 280, fps: 8,  idle: 3,  rot: false, sweep: false, pts: 48,  waves: 1 }
+};
+const detectarPerf = () => (((navigator.deviceMemory && navigator.deviceMemory <= 4) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4)) ? 'ligero' : 'normal');
+let perf = store.get('perf', detectarPerf());
+if (!PERF[perf]) perf = 'ligero';
+let P = PERF[perf];
+let baseCv = null, bctx = null, coreSprite = null;
+
+function ring(g, c, r, w, dash, rot, a) {
+  g.save();
+  g.translate(c, c);
+  g.rotate(rot);
+  g.setLineDash(dash);
+  g.lineWidth = w;
+  g.strokeStyle = hexA(hud, a);
+  g.beginPath();
+  g.arc(0, 0, r, 0, TAU);
+  g.stroke();
+  g.restore();
 }
-function seg(c, r, w, a0, a1, color) {
+function seg(r, w, a0, a1, color) {
   ctx.beginPath();
-  ctx.arc(c, c, r, a0, a1);
+  ctx.arc(300, 300, r, a0, a1);
   ctx.lineWidth = w;
   ctx.strokeStyle = color;
   ctx.stroke();
 }
+function hexagono(g, rot, dots) {
+  g.save();
+  g.translate(300, 300);
+  g.rotate(rot);
+  g.strokeStyle = hexA(hud, 0.4);
+  g.lineWidth = 1.5;
+  g.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (i * Math.PI) / 3, x = Math.cos(a) * 168, y = Math.sin(a) * 168;
+    i ? g.lineTo(x, y) : g.moveTo(x, y);
+  }
+  g.closePath();
+  g.stroke();
+  if (dots) {
+    g.fillStyle = hexA(hud, 0.9);
+    for (let i = 0; i < 6; i++) { const a = (i * Math.PI) / 3; g.beginPath(); g.arc(Math.cos(a) * 168, Math.sin(a) * 168, 3, 0, TAU); g.fill(); }
+  }
+  g.restore();
+}
 
-let lastT = performance.now(), frameN = 0;
+/* Capa fija: se dibuja una sola vez (y al cambiar el color), no en cada cuadro */
+function drawBase() {
+  if (!bctx) return;
+  const c = 300, k = baseCv.width / 600;
+  bctx.setTransform(k, 0, 0, k, 0, 0);
+  bctx.clearRect(0, 0, 600, 600);
+  bctx.setLineDash([]);
+  const g = bctx.createRadialGradient(c, c, 30, c, c, c);
+  g.addColorStop(0, hexA(hud, 0.34));
+  g.addColorStop(0.45, hexA(hud, 0.09));
+  g.addColorStop(1, hexA(hud, 0));
+  bctx.fillStyle = g;
+  bctx.fillRect(0, 0, 600, 600);
+  ring(bctx, c, 290, 1, [], 0, 0.22);
+  bctx.save();
+  bctx.translate(c, c);
+  for (let i = 0; i < 120; i++) {
+    bctx.rotate(Math.PI / 60);
+    const big = i % 10 === 0, mid = i % 5 === 0;
+    bctx.strokeStyle = hexA(hud, big ? 0.85 : mid ? 0.5 : 0.22);
+    bctx.lineWidth = big ? 2 : 1;
+    bctx.beginPath();
+    bctx.moveTo(0, -212);
+    bctx.lineTo(0, -212 + (big ? 18 : mid ? 11 : 6));
+    bctx.stroke();
+  }
+  bctx.restore();
+  coreSprite = document.createElement('canvas');
+  coreSprite.width = coreSprite.height = 256;
+  const sg = coreSprite.getContext('2d');
+  const cg = sg.createRadialGradient(128, 128, 0, 128, 128, 128);
+  cg.addColorStop(0, 'rgba(255,255,255,0.95)');
+  cg.addColorStop(0.25, hexA(hud, 0.9));
+  cg.addColorStop(1, hexA(hud, 0));
+  sg.fillStyle = cg;
+  sg.fillRect(0, 0, 256, 256);
+  if (!P.rot) {
+    ring(bctx, c, 272, 2, [3, 9], 0, 0.45);
+    ring(bctx, c, 192, 1.5, [10, 14], 0, 0.5);
+    hexagono(bctx, 0.3, true);
+  }
+}
+
+function sizeOrb() {
+  cv.width = cv.height = P.res;
+  if (baseCv) { baseCv.width = baseCv.height = P.res; drawBase(); }
+}
+function initOrb() {
+  const wrap = cv.parentElement;
+  wrap.style.position = 'relative';
+  cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;cursor:pointer';
+  baseCv = document.createElement('canvas');
+  baseCv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none';
+  wrap.insertBefore(baseCv, cv);
+  bctx = baseCv.getContext('2d');
+  sizeOrb();
+}
+
+const ETIQ_PERF = { normal: 'completos', ligero: 'ligeros', minimo: 'mínimos' };
+function setPerf(m) {
+  perf = PERF[m] ? m : 'ligero';
+  P = PERF[perf];
+  store.set('perf', perf);
+  document.body.dataset.perf = perf;
+  sizeOrb();
+  const bt = document.getElementById('btnPerf');
+  if (bt) bt.textContent = 'Efectos: ' + ETIQ_PERF[perf];
+}
+
+let lastDraw = 0;
 function drawOrb(now) {
+  requestAnimationFrame(drawOrb);
   now = now || performance.now();
-  const dt = Math.min(0.1, (now - lastT) / 1000);
-  if (state === 'idle' && (++frameN & 1)) { requestAnimationFrame(drawOrb); return; } // 30 fps en reposo
-  lastT = now;
+  if (document.hidden || !document.body.classList.contains('ready')) return;
+  if (now - lastDraw < 1000 / (state === 'idle' ? P.idle : P.fps) - 2) return;
+  const dt = Math.min(0.2, (now - lastDraw) / 1000);
+  lastDraw = now;
   t += dt;
 
-  const W = cv.width, c = W / 2, TAU = Math.PI * 2;
+  const c = 300, k = cv.width / 600;
   const targets = { idle: 0.16, listening: 0.5, thinking: 0.32, speaking: 0.85 };
   let tg = targets[state] ?? 0.2;
   if (state === 'speaking') tg *= 0.55 + 0.45 * Math.abs(Math.sin(t * 9) * Math.cos(t * 4.3));
@@ -153,96 +258,50 @@ function drawOrb(now) {
   const spin = state === 'thinking' ? 3.2 : state === 'listening' ? 1.6 : 1;
   const alt = state === 'thinking' ? '#ffb020' : hud;
 
-  ctx.clearRect(0, 0, W, W);
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.clearRect(0, 0, 600, 600);
   ctx.setLineDash([]);
 
-  // halo
-  const g = ctx.createRadialGradient(c, c, 30, c, c, c);
-  g.addColorStop(0, hexA(hud, 0.30 + level * 0.30));
-  g.addColorStop(0.45, hexA(hud, 0.08));
-  g.addColorStop(1, hexA(hud, 0));
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, W);
-
-  // barrido tipo radar
-  if (ctx.createConicGradient) {
+  // barrido tipo radar (solo en efectos completos)
+  if (P.sweep && ctx.createConicGradient) {
     const sw = ctx.createConicGradient(t * 0.9 * spin, c, c);
     sw.addColorStop(0, hexA(alt, 0.32));
     sw.addColorStop(0.16, hexA(alt, 0));
     sw.addColorStop(1, hexA(alt, 0));
     ctx.fillStyle = sw;
-    ctx.beginPath();
-    ctx.arc(c, c, 236, 0, TAU);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(c, c, 236, 0, TAU); ctx.fill();
+  }
+  if (P.rot) {
+    ring(ctx, c, 272, 2, [3, 9], -t * 0.35 * spin, 0.45);
+    ring(ctx, c, 192, 1.5, [10, 14], t * 0.6 * spin, 0.5);
   }
 
-  // anillos y segmentos
-  ring(c, 290, 1, [], 0, 0.22);
-  ring(c, 272, 2, [3, 9], -t * 0.35 * spin, 0.45);
+  // segmentos giratorios
   for (let i = 0; i < 3; i++) {
     const a = t * 0.5 * spin + i * 2.094;
-    seg(c, 246, 6, a, a + 1.05, hexA(i === 0 ? alt : hud, 0.85));
+    seg(246, 6, a, a + 1.05, hexA(i === 0 ? alt : hud, 0.85));
   }
   for (let i = 0; i < 2; i++) {
     const a = -t * 0.8 * spin + i * Math.PI + 0.4;
-    seg(c, 226, 2.5, a, a + 0.6, hexA(hud, 0.6));
+    seg(226, 2.5, a, a + 0.6, hexA(hud, 0.6));
   }
 
-  // marcas de escala
-  ctx.save();
-  ctx.translate(c, c);
-  ctx.rotate(-t * 0.12 * spin);
-  for (let i = 0; i < 120; i++) {
-    ctx.rotate(Math.PI / 60);
-    const big = i % 10 === 0, mid = i % 5 === 0;
-    ctx.strokeStyle = hexA(hud, big ? 0.85 : mid ? 0.5 : 0.22);
-    ctx.lineWidth = big ? 2 : 1;
-    ctx.beginPath();
-    ctx.moveTo(0, -212);
-    ctx.lineTo(0, -212 + (big ? 18 : mid ? 11 : 6));
-    ctx.stroke();
-  }
-  ctx.restore();
-  ring(c, 192, 1.5, [10, 14], t * 0.6 * spin, 0.5);
-
-  // satélites en órbita
+  // satélites
   for (let i = 0; i < 3; i++) {
     const a = t * (0.7 + i * 0.25) * spin + i * 2.09, r = 272 - i * 4;
     const x = c + Math.cos(a) * r, y = c + Math.sin(a) * r;
-    const gg = ctx.createRadialGradient(x, y, 0, x, y, 14);
-    gg.addColorStop(0, hexA(hud, 0.9));
-    gg.addColorStop(1, hexA(hud, 0));
-    ctx.fillStyle = gg;
-    ctx.beginPath(); ctx.arc(x, y, 14, 0, TAU); ctx.fill();
+    ctx.fillStyle = hexA(hud, 0.35);
+    ctx.beginPath(); ctx.arc(x, y, 8, 0, TAU); ctx.fill();
     ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(x, y, 2.6, 0, TAU); ctx.fill();
   }
+  if (P.rot) hexagono(ctx, t * 0.18 * spin, true);
 
-  // hexágono giratorio
-  ctx.save();
-  ctx.translate(c, c);
-  ctx.rotate(t * 0.18 * spin);
-  ctx.strokeStyle = hexA(hud, 0.4);
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const a = (i * Math.PI) / 3, x = Math.cos(a) * 168, y = Math.sin(a) * 168;
-    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-  }
-  ctx.closePath();
-  ctx.stroke();
-  ctx.fillStyle = hexA(hud, 0.9);
-  for (let i = 0; i < 6; i++) {
-    const a = (i * Math.PI) / 3;
-    ctx.beginPath(); ctx.arc(Math.cos(a) * 168, Math.sin(a) * 168, 3, 0, TAU); ctx.fill();
-  }
-  ctx.restore();
-
-  // ondas de voz (doble trazo en vez de sombra: más liviano)
+  // ondas de voz
   const wave = (base, amp, ph, color, lw) => {
     ctx.beginPath();
-    for (let i = 0; i <= 160; i++) {
-      const a = (i / 160) * TAU;
+    for (let i = 0; i <= P.pts; i++) {
+      const a = (i / P.pts) * TAU;
       const r = base + Math.sin(a * 6 + t * 3 + ph) * amp * 0.6 + Math.sin(a * 11 - t * 4.5 + ph) * amp * 0.4 + Math.sin(a * 3 + t * 1.7) * amp * 0.3;
       const x = c + Math.cos(a) * r, y = c + Math.sin(a) * r;
       i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
@@ -253,8 +312,8 @@ function drawOrb(now) {
     ctx.stroke();
   };
   const amp = level * 30, base = 132 + level * 10;
-  wave(base, amp, 0, hexA(hud, 0.18), 10);
-  wave(base - 12, amp * 0.7, 1.7, hexA(hud, 0.4), 1.5);
+  if (P.waves >= 3) wave(base, amp, 0, hexA(hud, 0.18), 10);
+  if (P.waves >= 2) wave(base - 12, amp * 0.7, 1.7, hexA(hud, 0.4), 1.5);
   wave(base, amp, 0, hexA(hud, 0.95), 2.5);
 
   // pulso al escuchar o hablar
@@ -267,14 +326,7 @@ function drawOrb(now) {
 
   // núcleo
   const cr = 95 + level * 20;
-  const core = ctx.createRadialGradient(c, c, 0, c, c, cr);
-  core.addColorStop(0, 'rgba(255,255,255,0.95)');
-  core.addColorStop(0.25, hexA(hud, 0.9));
-  core.addColorStop(1, hexA(hud, 0));
-  ctx.fillStyle = core;
-  ctx.beginPath(); ctx.arc(c, c, cr, 0, TAU); ctx.fill();
-
-  requestAnimationFrame(drawOrb);
+  if (coreSprite) ctx.drawImage(coreSprite, c - cr, c - cr, cr * 2, cr * 2);
 }
 
 /* =====================================================================
@@ -1229,6 +1281,12 @@ async function revisarAgenda() {
 /* Órdenes que se responden siempre con el texto completo, sin pasar por la IA */
 async function comandoDirecto(text) {
   const t = text.toLowerCase();
+  const mp = t.match(/(?:modo|efectos?)\s+(ligeros?|m[ií]nimos?|completos?|normal(?:es)?)/);
+  if (mp) {
+    const m = /lig/.test(mp[1]) ? 'ligero' : /m[ií]n/.test(mp[1]) ? 'minimo' : 'normal';
+    setPerf(m);
+    return `Efectos ${ETIQ_PERF[m]} activados.`;
+  }
   if (t.split(/\s+/).length <= 9 && /buenos d[ií]as|buenas tardes|buenas noches|dame (?:el |mi )?resumen|resumen del d[ií]a|mi resumen/.test(t)) return await resumen();
   if (/(?:precio|c[oó]mo est[aá]|a c[oó]mo est[aá]|cu[aá]nto (?:est[aá]|vale)).*(?:d[oó]lar|euro)|\btrm\b|noticias (?:econ[oó]micas|financieras)/.test(t)) return await Eco.texto({ noticias: /noticias/.test(t) });
   return null;
@@ -1415,10 +1473,16 @@ async function handleCommand(text) {
 /* =====================================================================
    PANELES: reloj, sistema, clima
    ===================================================================== */
+let ultimaFecha = '';
 function tick() {
   const d = new Date();
-  $('clock').textContent = d.toLocaleTimeString('es-CO', { hour12: false });
-  $('date').textContent = d.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const p2 = n => (n < 10 ? '0' : '') + n;
+  $('clock').textContent = `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+  const f = d.toDateString();
+  if (f !== ultimaFecha) {
+    ultimaFecha = f;
+    $('date').textContent = d.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
   if (timers.length || sw.start || sw.acc) renderTimers();
 }
 
@@ -1579,11 +1643,12 @@ function greeting() {
 $('btnBoot').addEventListener('click', () => {
   $('boot').classList.add('hide');
   document.body.classList.add('ready');
+  setTimeout(() => { $('boot').style.display = 'none'; }, 1100);
   getAC();
   initRec();
   const lines = ['Núcleo de voz', 'Enlace con la IA', 'Módulos de acciones', 'Interfaz HUD'];
   lines.forEach((l, i) => setTimeout(() => logAction(l + ': en línea'), 250 * (i + 1)));
-  setTimeout(() => logAction('Código versión 21'), 1300);
+  setTimeout(() => logAction('Código versión 23'), 1300);
 
   const g = greeting();
   $('replyText').textContent = g;
@@ -1637,4 +1702,19 @@ new MutationObserver(() => {
   void r.offsetWidth;
   r.classList.add('pop');
 }).observe($('replyText'), { childList: true, characterData: true, subtree: true });
-drawOrb();
+(function crearBotonPerf() {
+  let bt = document.getElementById('btnPerf');
+  if (!bt) {
+    const box = document.querySelector('.top-actions');
+    if (!box) return;
+    bt = document.createElement('button');
+    bt.id = 'btnPerf';
+    bt.className = 'chip';
+    bt.title = 'Cambia entre efectos completos, ligeros y mínimos (si el equipo va lento, usa ligeros o mínimos)';
+    box.prepend(bt);
+  }
+  bt.addEventListener('click', () => setPerf({ normal: 'ligero', ligero: 'minimo', minimo: 'normal' }[perf]));
+})();
+initOrb();
+setPerf(perf);
+requestAnimationFrame(drawOrb);
